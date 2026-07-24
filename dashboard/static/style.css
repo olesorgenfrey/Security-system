@@ -48,23 +48,32 @@ header h1 { margin: 0; font-size: 1.4rem; }
   border-radius: 6px;
 }
 
-table.events {
+h2 {
+  font-size: 1rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 1.5rem 0 0.75rem;
+}
+
+table.events, table.alerts {
   width: 100%;
   border-collapse: collapse;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  margin-bottom: 1rem;
 }
 
-table.events th, table.events td {
+table.events th, table.events td, table.alerts th, table.alerts td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
   text-align: left;
   font-size: 0.85rem;
 }
 
-table.events th {
+table.events th, table.alerts th {
   color: var(--muted);
   font-weight: 600;
   text-transform: uppercase;

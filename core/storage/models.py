@@ -65,6 +65,38 @@ class EventRecord(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class AlertStatus(StrEnum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    CLOSED = "closed"
+
+
+class Alert(Base):
+    """Von der Detection Engine (Phase 2) erzeugte Alerts aus verdächtigen Event-Mustern."""
+
+    __tablename__ = "alerts"
+    __table_args__ = (Index("ix_alerts_created_at_severity", "created_at", "severity"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    rule_id: Mapped[str] = mapped_column(index=True)
+    """z.B. 'brute_force_ssh' — eindeutiger Name der auslösenden Detection-Regel."""
+    title: Mapped[str]
+    description: Mapped[str | None]
+    severity: Mapped[int] = mapped_column(default=0, index=True)
+    mitre_technique: Mapped[str | None]
+    """MITRE-ATT&CK-Technik-ID, z.B. 'T1110' (Brute Force)."""
+    status: Mapped[str] = mapped_column(default=AlertStatus.OPEN, index=True)
+
+    host_name: Mapped[str | None] = mapped_column(index=True)
+    source_ip: Mapped[str | None] = mapped_column(INET, index=True)
+    event_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    """IDs der Events, die diesen Alert ausgelöst haben."""
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+
+
 class Asset(Base):
     """Bekannte Assets (Hosts, Services, Container, ...) im überwachten Scope."""
 

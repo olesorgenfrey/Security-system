@@ -1,0 +1,28 @@
+<table class="alerts">
+  <thead>
+    <tr>
+      <th>Zeit</th>
+      <th>Titel</th>
+      <th>Regel</th>
+      <th>MITRE</th>
+      <th>Severity</th>
+      <th>Host</th>
+      <th>Quell-IP</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in alerts %}
+    <tr class="sev-{{ 'high' if a.severity >= 60 else ('mid' if a.severity >= 30 else 'low') }}">
+      <td>{{ a.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td>{{ a.title }}</td>
+      <td>{{ a.rule_id }}</td>
+      <td>{{ a.mitre_technique or "–" }}</td>
+      <td>{{ a.severity }}</td>
+      <td>{{ a.host_name or "–" }}</td>
+      <td>{{ a.source_ip or "–" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="empty">Keine offenen Alerts.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

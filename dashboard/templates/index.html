@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
+<h2>Alerts</h2>
+<div id="alerts-table"
+     hx-get="/partials/alerts"
+     hx-trigger="load, every 5s">
+  {% include "_alerts_table.html" %}
+</div>
+
+<h2>Events</h2>
 <form class="filters"
       hx-get="/partials/events"
       hx-target="#events-table"

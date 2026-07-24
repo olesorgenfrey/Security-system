@@ -15,6 +15,8 @@ import socket
 import redis
 from pydantic import ValidationError
 
+from core.config import get_settings
+from core.detection.rules import evaluate as evaluate_detection_rules
 from core.ingestion.bus import (
     CONSUMER_GROUP,
     ack_event,
@@ -62,10 +64,12 @@ def _handle_message(raw_json: str) -> None:
         return
 
     with SessionLocal() as session:
-        session.add(_to_record(event))
+        record = _to_record(event)
+        session.add(record)
         session.commit()
 
-    from core.config import get_settings
+        alerts = evaluate_detection_rules(session, record)
+        session.commit()
 
     threshold = get_settings().notify_severity_threshold
     if event.event.severity >= threshold:
@@ -77,6 +81,9 @@ def _handle_message(raw_json: str) -> None:
             ),
             severity=event.event.severity,
         )
+
+    for alert in alerts:
+        notify(title=alert.title, message=alert.description or "", severity=alert.severity)
 
 
 def run() -> None:

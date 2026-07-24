@@ -35,13 +35,14 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 
 ---
 
-## Phase 2 — Detection Engine  🔲
+## Phase 2 — Detection Engine  🚧
 **Ziel:** Aus Events werden aussagekräftige Alerts.
 
-- [ ] Sigma-Regel-Engine (kuratierte Startregeln, z. B. Brute-Force, neue Admin-Konten)
+- [x] Erste Regel: Brute-Force-Erkennung (Schwellwert/Zeitfenster, IP-gruppiert)
+- [ ] Sigma-Regel-Engine (weitere kuratierte Regeln, z. B. neue Admin-Konten)
 - [ ] Einfache Anomalie-Detektoren (Schwellwert/Z-Score)
-- [ ] Severity-Scoring + MITRE-ATT&CK-Mapping
-- [ ] Alert-Ansicht im Dashboard
+- [x] Severity-Scoring + MITRE-ATT&CK-Mapping (erste Regel)
+- [x] Alert-Ansicht im Dashboard
 
 **Ergebnis:** Das System meldet verdächtige Muster, nicht nur Rohdaten.
 

@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     notify_smtp_user: str | None = None
     notify_smtp_password: str | None = None
 
+    # Detection Engine (Phase 2)
+    detection_brute_force_threshold: int = 3
+    """Ab so vielen Fehlversuchen derselben Quell-IP im Zeitfenster entsteht ein Alert."""
+    detection_brute_force_window_minutes: int = 5
+    detection_brute_force_cooldown_minutes: int = 15
+    """Mindestabstand zwischen zwei Alerts derselben Regel/IP, um Alert-Flut zu vermeiden."""
+
 
 @lru_cache
 def get_settings() -> Settings:

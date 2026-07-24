@@ -6,8 +6,10 @@ Erkennungsentscheidungen (das macht Phase 2, die Detection Engine).
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -26,6 +28,7 @@ from core.schemas.event import (
     EventType,
     Host,
     Process,
+    Source,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -33,6 +36,8 @@ logger = logging.getLogger("aegis.host_agent")
 
 _AUTH_FAIL_MARKERS = ("failed password", "authentication failure", "invalid user")
 _AUTH_OK_MARKERS = ("accepted password", "accepted publickey", "session opened")
+_IP_RE = re.compile(r"from (\d{1,3}(?:\.\d{1,3}){3})")
+_USER_RE = re.compile(r"for (?:invalid user )?(\S+) from")
 
 
 def _hostname() -> str:
@@ -50,6 +55,15 @@ def _severity_for_log_line(line: str) -> tuple[int, EventOutcome]:
     if any(marker in lowered for marker in _AUTH_OK_MARKERS):
         return 10, EventOutcome.SUCCESS
     return 20, EventOutcome.UNKNOWN
+
+
+def _extract_source(line: str) -> Source | None:
+    ip_match = _IP_RE.search(line)
+    if not ip_match:
+        return None
+    user_match = _USER_RE.search(line)
+    ip = ipaddress.ip_address(ip_match.group(1))
+    return Source(ip=ip, user=user_match.group(1) if user_match else None)
 
 
 def tail_log(path: str, client: redis.Redis) -> None:
@@ -92,6 +106,7 @@ def tail_log(path: str, client: redis.Redis) -> None:
             ),
             message=line,
             host=Host(name=_hostname()),
+            source=_extract_source(line),
             tags=["host_agent", "log_tail"],
             labels={"source_file": path},
         )

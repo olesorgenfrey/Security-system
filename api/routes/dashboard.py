@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from api.routes.alerts import build_alerts_query
 from api.routes.events import build_events_query
 from core.storage.database import get_session
 
@@ -49,9 +50,18 @@ def dashboard_index(
         filters.search or None,
     ).limit(100)
     events = session.execute(stmt).scalars().all()
+    alerts = session.execute(build_alerts_query("open").limit(20)).scalars().all()
     return templates.TemplateResponse(
-        request, "index.html", {"events": events, "filters": filters}
+        request, "index.html", {"events": events, "alerts": alerts, "filters": filters}
     )
+
+
+@router.get("/partials/alerts")
+def alerts_partial(
+    request: Request, session: Annotated[Session, Depends(get_session)]
+) -> HTMLResponse:
+    alerts = session.execute(build_alerts_query("open").limit(20)).scalars().all()
+    return templates.TemplateResponse(request, "_alerts_table.html", {"alerts": alerts})
 
 
 @router.get("/partials/events")
