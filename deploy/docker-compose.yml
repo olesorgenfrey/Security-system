@@ -1,0 +1,87 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: aegis
+      POSTGRES_DB: aegis
+    volumes:
+      - aegis_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://aegis:aegis@db:5432/aegis
+      REDIS_URL: redis://redis:6379/0
+      SCOPE_FILE: /app/config/scope.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../config:/app/config:ro
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["uv", "run", "python", "-m", "core.ingestion.consumer"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://aegis:aegis@db:5432/aegis
+      REDIS_URL: redis://redis:6379/0
+      SCOPE_FILE: /app/config/scope.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      NOTIFY_EMAIL_TO: ${NOTIFY_EMAIL_TO:-}
+      NOTIFY_SMTP_HOST: ${NOTIFY_SMTP_HOST:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../config:/app/config:ro
+
+  host_agent:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["uv", "run", "python", "-m", "collectors.host_agent.agent"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SCOPE_FILE: /app/config/scope.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HOST_AGENT_HOSTNAME: ${HOST_AGENT_HOSTNAME:-kali-kasm}
+      HOST_AGENT_LOG_PATHS: /var/log/aegis-demo/auth.log
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/var/log/aegis-demo
+
+volumes:
+  aegis_pgdata:

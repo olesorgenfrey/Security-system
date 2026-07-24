@@ -1,0 +1,26 @@
+<table class="events">
+  <thead>
+    <tr>
+      <th>Zeit</th>
+      <th>Host</th>
+      <th>Dataset</th>
+      <th>Kategorie</th>
+      <th>Severity</th>
+      <th>Nachricht</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in events %}
+    <tr class="sev-{{ 'high' if e.severity >= 60 else ('mid' if e.severity >= 30 else 'low') }}">
+      <td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td>{{ e.host_name }}</td>
+      <td>{{ e.dataset }}</td>
+      <td>{{ e.category | join(", ") }}</td>
+      <td>{{ e.severity }}</td>
+      <td>{{ e.message }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">Keine Events (noch) gefunden.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

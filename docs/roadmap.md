@@ -8,28 +8,28 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 
 ---
 
-## Phase 0 — Grundgerüst  🔲
+## Phase 0 — Grundgerüst  ✅
 **Ziel:** Reproduzierbares Projekt-Setup, an dem alle weiteren Teile andocken.
 
-- [ ] Projektstruktur & Python-Setup (Poetry/uv, Linting, Typing)
-- [ ] Gemeinsames **Event-Schema** (ECS-angelehnt) als Datenmodell
-- [ ] PostgreSQL + Migrationen (SQLAlchemy/Alembic)
-- [ ] `docker-compose` für lokale Dev-Umgebung (DB, Redis, App)
-- [ ] GitHub-Actions-CI: Lint, Tests, Dependency-Scan
-- [ ] Konfigurations- & Scope-Konzept (welche Assets sind „in scope")
+- [x] Projektstruktur & Python-Setup (uv, Linting/ruff, Typing/mypy)
+- [x] Gemeinsames **Event-Schema** (ECS-angelehnt) als Datenmodell
+- [x] PostgreSQL + Migrationen (SQLAlchemy/Alembic)
+- [x] `docker-compose` für lokale Dev-Umgebung (DB, Redis, App)
+- [x] GitHub-Actions-CI: Lint, Tests, Dependency-Scan
+- [x] Konfigurations- & Scope-Konzept (welche Assets sind „in scope")
 
 **Ergebnis:** `docker compose up` startet ein leeres, aber vollständiges Skelett.
 
 ---
 
-## Phase 1 — Monitoring-MVP  🔲
+## Phase 1 — Monitoring-MVP  ✅
 **Ziel:** Events sammeln, speichern, sichtbar machen.
 
-- [ ] Host-Agent: Log-Tailing + Prozess-/Netzwerk-Snapshot
-- [ ] Event Bus (Redis Streams) + Normalizer
-- [ ] Events landen strukturiert in Postgres
-- [ ] Minimal-Dashboard: Live-Event-Feed + einfache Suche/Filter
-- [ ] Erste E-Mail/Webhook-Benachrichtigung
+- [x] Host-Agent: Log-Tailing + Prozess-/Netzwerk-Snapshot
+- [x] Event Bus (Redis Streams) + Normalizer
+- [x] Events landen strukturiert in Postgres
+- [x] Minimal-Dashboard: Live-Event-Feed + einfache Suche/Filter
+- [x] Erste E-Mail/Webhook-Benachrichtigung
 
 **Ergebnis:** Du siehst live, was auf einem Host passiert. Ein schlankes SIEM.
 

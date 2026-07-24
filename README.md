@@ -18,15 +18,15 @@ reagiert** — mit Mensch-im-Kontrollkreis für kritische Aktionen.
 
 | Baustein | Aufgabe | Status |
 |----------|---------|--------|
-| **Collectors / Agents** | Sammeln Logs, Prozess-, Netzwerk- und Cloud-Events | 🔲 geplant |
-| **Ingestion & Event Bus** | Normalisieren auf ein gemeinsames Schema | 🔲 geplant |
-| **SIEM / Storage** | Speichern & durchsuchen von Events | 🔲 geplant |
+| **Collectors / Agents** | Sammeln Logs, Prozess-, Netzwerk- und Cloud-Events | 🚧 Host-Agent fertig |
+| **Ingestion & Event Bus** | Normalisieren auf ein gemeinsames Schema | ✅ fertig |
+| **SIEM / Storage** | Speichern & durchsuchen von Events | ✅ fertig |
 | **Detection Engine** | Regel- (Sigma) + Signatur- + Anomalie-Erkennung | 🔲 geplant |
 | **Vulnerability Scanner** | Orchestriert nmap / nuclei / Trivy | 🔲 geplant |
 | **IDS-Integration** | Netzwerk-Erkennung via Suricata / Zeek | 🔲 geplant |
-| **Correlation & Alerting** | Events → Incidents, Deduplizierung, Severity | 🔲 geplant |
+| **Correlation & Alerting** | Events → Incidents, Deduplizierung, Severity | 🚧 erste Benachrichtigung fertig |
 | **Adaptive Response (SOAR)** | Playbooks mit Safety-Gates & Rollback | 🔲 geplant |
-| **Dashboard** | Web-UI für Status, Alerts, Incidents, Scans | 🔲 geplant |
+| **Dashboard** | Web-UI für Status, Alerts, Incidents, Scans | 🚧 Live-Feed-MVP fertig |
 
 ## Dokumentation
 
@@ -42,5 +42,16 @@ offensiv gegen Dritte. Details siehe Architektur-Dokument.
 
 ## Status
 
-🌱 **Planungsphase.** Noch kein produktiver Code. Nächster Schritt: Freigabe
-der Architektur, dann Phase 0 (Projekt-Grundgerüst).
+✅ **Phase 0 (Projekt-Grundgerüst) abgeschlossen.** Python-Setup (uv, ruff,
+mypy), ECS-angelehntes Event-Schema, Postgres-Modelle + Alembic-Migration,
+docker-compose (DB/Redis/App), GitHub-Actions-CI und das Scope-Konzept stehen.
+
+✅ **Phase 1 (Monitoring-MVP) abgeschlossen.** Host-Agent (Log-Tailing +
+Prozess-/Netzwerk-Snapshot), Event Bus über Redis Streams, Consumer-Worker
+der Events nach Postgres schreibt, HTMX/Jinja-Dashboard mit Live-Feed +
+Filter/Suche, sowie konfigurierbare E-Mail-/Webhook-Benachrichtigung ab
+einstellbarem Severity-Schwellwert. Starten via aeris up, Dashboard unter
+http://localhost:8000/.
+
+Nächster Schritt: Phase 2 (Detection Engine) — Sigma-Regeln, Anomalie-
+Erkennung, Severity-Scoring.

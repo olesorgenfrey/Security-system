@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<form class="filters"
+      hx-get="/partials/events"
+      hx-target="#events-table"
+      hx-trigger="submit, change delay:300ms"
+      hx-include="this">
+  <input type="text" name="search" placeholder="Suche in Nachricht…" value="{{ filters.search }}">
+  <input type="text" name="host" placeholder="Host" value="{{ filters.host }}">
+  <select name="category">
+    <option value="">Alle Kategorien</option>
+    {% for cat in ["authentication", "process", "network", "file", "host"] %}
+    <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <select name="min_severity">
+    {% for level in [0, 20, 40, 60, 80] %}
+    <option value="{{ level }}" {% if filters.min_severity == level %}selected{% endif %}>ab Severity {{ level }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div id="events-table"
+     hx-get="/partials/events"
+     hx-trigger="load, every 3s"
+     hx-include="form.filters">
+  {% include "_events_table.html" %}
+</div>
+{% endblock %}
