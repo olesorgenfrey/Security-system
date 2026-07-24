@@ -124,7 +124,7 @@ def snapshot_processes(client: redis.Redis, known_pids: set[int]) -> set[int]:
         proc = current[pid]
         try:
             info = proc.info
-        except psutil.NoSuchProcess:
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
         event = Event(
             event=EventMeta(

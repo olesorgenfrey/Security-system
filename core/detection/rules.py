@@ -14,6 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.config import get_settings
+from core.detection.anomaly import evaluate_process_burst
+from core.detection.keyword_rules import evaluate_keyword_rules
 from core.storage.models import Alert, AlertStatus, EventRecord
 
 RULE_BRUTE_FORCE = "brute_force_auth"
@@ -81,8 +83,9 @@ def evaluate_brute_force(session: Session, record: EventRecord) -> Alert | None:
 def evaluate(session: Session, record: EventRecord) -> list[Alert]:
     """Führt alle registrierten Detection-Regeln gegen das gespeicherte Event aus."""
     alerts = []
-    for rule in (evaluate_brute_force,):
-        alert = rule(session, record)
+    for threshold_rule in (evaluate_brute_force, evaluate_process_burst):
+        alert = threshold_rule(session, record)
         if alert is not None:
             alerts.append(alert)
+    alerts.extend(evaluate_keyword_rules(session, record))
     return alerts

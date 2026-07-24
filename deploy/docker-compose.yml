@@ -70,8 +70,14 @@ services:
       context: ..
       dockerfile: Dockerfile
     command: ["uv", "run", "python", "-m", "collectors.host_agent.agent"]
+    # PID-/Netzwerk-Namespace des umgebenden Kali-Containers teilen, statt nur den
+    # eigenen (fast leeren) Container-Namespace zu sehen — sonst gibt es de facto
+    # nichts zu überwachen (siehe architecture.md §3.1: Prozess-/Netzwerk-Monitoring).
+    pid: "host"
+    network_mode: "host"
+    privileged: true
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://localhost:6379/0
       SCOPE_FILE: /app/config/scope.yaml
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       HOST_AGENT_HOSTNAME: ${HOST_AGENT_HOSTNAME:-kali-kasm}

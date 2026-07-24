@@ -35,12 +35,12 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 
 ---
 
-## Phase 2 — Detection Engine  🚧
+## Phase 2 — Detection Engine  ✅
 **Ziel:** Aus Events werden aussagekräftige Alerts.
 
 - [x] Erste Regel: Brute-Force-Erkennung (Schwellwert/Zeitfenster, IP-gruppiert)
-- [ ] Sigma-Regel-Engine (weitere kuratierte Regeln, z. B. neue Admin-Konten)
-- [ ] Einfache Anomalie-Detektoren (Schwellwert/Z-Score)
+- [x] Kuratierte Keyword-Regeln (neues Admin-Konto, Reverse-Shell-Muster) — echtes Sigma (pySigma) als spaeterer Ausbau
+- [x] Anomalie-Detektor: Z-Score auf Prozess-Erstellungsrate pro Host
 - [x] Severity-Scoring + MITRE-ATT&CK-Mapping (erste Regel)
 - [x] Alert-Ansicht im Dashboard
 

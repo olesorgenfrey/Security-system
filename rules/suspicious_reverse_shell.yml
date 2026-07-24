@@ -1,0 +1,13 @@
+id: suspicious_reverse_shell
+title: Verdächtiges Reverse-Shell-Muster in Prozess-Kommandozeile
+description: >
+  Bekannte Reverse-/Bind-Shell-Idiome (nc -e, bash -i /dev/tcp, python -c socket)
+  in einer Prozess-Kommandozeile. Klassisches Post-Exploitation-Muster.
+mitre: T1059
+severity: 85
+match_any:
+  - ["nc", "-e"]
+  - ["ncat", "-e"]
+  - ["bash", "/dev/tcp"]
+  - ["sh", "/dev/tcp"]
+  - ["python", "socket", "subprocess"]

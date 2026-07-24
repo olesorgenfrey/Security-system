@@ -1,0 +1,13 @@
+id: new_admin_account
+title: Neues Admin-/Sudo-Konto erstellt
+description: >
+  Ein Benutzer wurde angelegt oder einer privilegierten Gruppe (sudo/wheel/admin)
+  hinzugefügt. Häufiges Ziel nach initialem Zugriff (Persistenz/Privilege Escalation).
+mitre: T1136.001
+severity: 70
+match_any:
+  - ["useradd", "sudo"]
+  - ["useradd", "wheel"]
+  - ["usermod", "sudo"]
+  - ["usermod", "wheel"]
+  - ["adduser", "sudo"]

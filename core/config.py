@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     detection_brute_force_cooldown_minutes: int = 15
     """Mindestabstand zwischen zwei Alerts derselben Regel/IP, um Alert-Flut zu vermeiden."""
 
+    # Anomalie-Detektor (Phase 2): Z-Score auf Prozess-Erstellungsrate pro Host
+    anomaly_window_seconds: int = 60
+    anomaly_baseline_windows: int = 10
+    """Anzahl vorheriger Zeitfenster, aus denen Mittelwert/Streuung berechnet werden."""
+    anomaly_min_count: int = 5
+    """Mindestanzahl Ereignisse im aktuellen Fenster, bevor Z-Score überhaupt geprüft wird."""
+    anomaly_z_threshold: float = 3.0
+    anomaly_cooldown_minutes: int = 15
+
 
 @lru_cache
 def get_settings() -> Settings:

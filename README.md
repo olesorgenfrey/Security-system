@@ -21,7 +21,7 @@ reagiert** — mit Mensch-im-Kontrollkreis für kritische Aktionen.
 | **Collectors / Agents** | Sammeln Logs, Prozess-, Netzwerk- und Cloud-Events | 🚧 Host-Agent fertig |
 | **Ingestion & Event Bus** | Normalisieren auf ein gemeinsames Schema | ✅ fertig |
 | **SIEM / Storage** | Speichern & durchsuchen von Events | ✅ fertig |
-| **Detection Engine** | Regel- (Sigma) + Signatur- + Anomalie-Erkennung | 🔲 geplant |
+| **Detection Engine** | Regel- (Sigma) + Signatur- + Anomalie-Erkennung | ✅ Keyword-Regeln + Z-Score |
 | **Vulnerability Scanner** | Orchestriert nmap / nuclei / Trivy | 🔲 geplant |
 | **IDS-Integration** | Netzwerk-Erkennung via Suricata / Zeek | 🔲 geplant |
 | **Correlation & Alerting** | Events → Incidents, Deduplizierung, Severity | 🚧 erste Benachrichtigung fertig |
@@ -53,5 +53,11 @@ Filter/Suche, sowie konfigurierbare E-Mail-/Webhook-Benachrichtigung ab
 einstellbarem Severity-Schwellwert. Starten via aeris up, Dashboard unter
 http://localhost:8000/.
 
-Nächster Schritt: Phase 2 (Detection Engine) — Sigma-Regeln, Anomalie-
-Erkennung, Severity-Scoring.
+✅ **Phase 2 (Detection Engine) abgeschlossen.** Brute-Force-Regel (Schwellwert +
+Zeitfenster, IP-gruppiert, dedupliziert), kuratierte Keyword-Regeln (neues
+Admin-/Sudo-Konto, Reverse-Shell-Muster in Prozess-Kommandozeilen), Z-Score-
+Anomalie-Detektor auf der Prozess-Erstellungsrate pro Host, MITRE-ATT&CK-
+Mapping je Alert sowie eine eigene Alert-Ansicht im Dashboard.
+
+Nächster Schritt: Phase 3 (Vulnerability Scanning) — nmap/nuclei/Trivy-
+Orchestrierung, Asset-Inventar, Finding-Verwaltung.
