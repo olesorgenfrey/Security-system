@@ -1,0 +1,17 @@
+# Erlaubter Scope für Scanning & Response-Aktionen (docs/architecture.md §6).
+#
+# NUR eigene bzw. ausdrücklich autorisierte Systeme eintragen. Alles, was
+# hier nicht gelistet ist, wird von Scanner (Phase 3) und Response-Engine
+# (Phase 5) hart verweigert (core/scope.py, fail-closed).
+#
+# Aktuelles Ziel laut Projekt-Setup: dieser eine Server. Trage unten die
+# tatsächliche(n) IP-Adresse(n)/CIDR dieses Servers ein, sobald sie feststehen
+# (z.B. per `ip -4 addr` bzw. `hostname -I`).
+
+allowed_networks:
+  - "127.0.0.1/32"
+  - "::1/128"
+  # - "<IP-dieses-Servers>/32"
+
+allowed_hosts:
+  - "localhost"
