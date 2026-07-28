@@ -140,6 +140,7 @@ Relevante Befehle:
 ```bash
 aeris dashboard --no-start
 aeris dashboard --no-browser
+aeris dashboard --no-auth          # nur für einen lokalen Kurztest
 aeris up
 aeris up --no-build
 aeris down
@@ -148,6 +149,11 @@ aeris logs migrate app worker notification_worker maintenance host_agent --tail 
 aeris logs app worker -f --tail 200
 aeris maintenance --once
 ```
+
+`aeris dashboard --no-auth` deaktiviert die HTTP-Basic-Anmeldung nur transient
+und nur, wenn Bind-Adresse und Dashboard-URL wörtliche Loopback-Adressen sind.
+Die `.env` bleibt unverändert. Ein normaler Aufruf von `aeris` oder `aeris up`
+setzt den App-Container anschließend wieder mit aktivierter Anmeldung auf.
 
 `aeris down` behält PostgreSQL- und Redis-Volumes. Die CLI bietet
 absichtlich keinen Schalter zum Löschen der Volumes.

@@ -101,6 +101,8 @@ services:
       <<: *core-environment
       API_USERNAME: ${AEGIS_API_USERNAME:-aegis}
       API_PASSWORD: ${AEGIS_API_PASSWORD:?AEGIS_API_PASSWORD must be set in .env}
+      API_AUTH_DISABLED: ${AEGIS_API_AUTH_DISABLED:-false}
+      API_PUBLIC_BIND_ADDRESS: ${AEGIS_BIND_ADDRESS:-127.0.0.1}
     ports:
       - "${AEGIS_BIND_ADDRESS:-127.0.0.1}:${AEGIS_HTTP_PORT:-8000}:8000"
     depends_on:

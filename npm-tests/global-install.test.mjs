@@ -71,7 +71,7 @@ test("packed CLI installs globally and runs outside the checkout without uv", (t
 
   const version = execute(executable, ["--version"], { cwd: elsewhere, env });
   assert.equal(version.status, 0, version.stderr || version.stdout);
-  assert.match(version.stdout, /^aeris 0\.1\.0\s*$/);
+  assert.match(version.stdout, /^aeris 0\.1\.1\s*$/);
 
   const initialized = execute(executable, ["init"], { cwd: elsewhere, env });
   assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);

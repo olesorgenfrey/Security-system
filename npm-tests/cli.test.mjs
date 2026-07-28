@@ -39,6 +39,7 @@ function createProject(root) {
       "AEGIS_API_PASSWORD=",
       "AEGIS_API_USERNAME=aegis",
       "AEGIS_BIND_ADDRESS=127.0.0.1",
+      "AEGIS_API_AUTH_DISABLED=false",
       "AEGIS_HTTP_PORT=8123",
       "AERIS_CONFIG_DIR=../config",
       "HOST_LOG_DIR=/var/log",
@@ -89,12 +90,17 @@ function defaultEnvFile(state) {
   return path.join(state.home, ".config", "aeris", ".env");
 }
 
-test("bare aeris creates secure config and opens a healthy dashboard", async (t) => {
+test("bare aeris creates secure config, enables auth, and opens a healthy dashboard", async (t) => {
   const state = harness(t);
 
   assert.equal(await run([], state.context), 0);
   assert.deepEqual(state.browserCalls, ["http://127.0.0.1:8123/"]);
-  assert.equal(state.processCalls.length, 0);
+  const compose = state.processCalls.find(
+    (call) => call.command === "docker" && call.args.includes("up"),
+  );
+  assert.ok(compose);
+  assert.deepEqual(compose.args.slice(-3), ["up", "-d", "app"]);
+  assert.equal(compose.options.env.AEGIS_API_AUTH_DISABLED, "false");
 
   const envFile = defaultEnvFile(state);
   const values = parseEnvFile(envFile);
@@ -109,6 +115,50 @@ test("bare aeris creates secure config and opens a healthy dashboard", async (t)
   assert.ok(readFileSync(path.join(state.home, ".config", "aeris", "config", "scope.yaml"), "utf8"));
   const routineOutput = [...state.stdout, ...state.stderr].join("\n");
   assert.ok(secrets.every((secret) => !routineOutput.includes(secret)));
+});
+
+test("--no-auth is transient and reconciles an already healthy local app", async (t) => {
+  const state = harness(t);
+
+  assert.equal(await run(["dashboard", "--no-auth", "--no-browser"], state.context), 0);
+
+  const compose = state.processCalls.find(
+    (call) => call.command === "docker" && call.args.includes("up"),
+  );
+  assert.ok(compose);
+  assert.deepEqual(compose.args.slice(-4), ["up", "-d", "--build", "app"]);
+  assert.equal(compose.options.env.AEGIS_API_AUTH_DISABLED, "true");
+  assert.equal(parseEnvFile(defaultEnvFile(state)).AEGIS_API_AUTH_DISABLED, "false");
+  assert.equal(state.browserCalls.length, 0);
+  assert.match(state.stdout.join("\n"), /WARNUNG.*Anmeldung/);
+});
+
+test("--no-auth rejects unsafe bindings and remote dashboard URLs before Docker", async (t) => {
+  for (const environment of [
+    { AEGIS_BIND_ADDRESS: "0.0.0.0" },
+    { AEGIS_BIND_ADDRESS: "192.0.2.10" },
+    { AERIS_DASHBOARD_URL: "https://aegis.example.test/" },
+  ]) {
+    const state = harness(t);
+    Object.assign(state.context.env, environment);
+
+    assert.equal(await run(["dashboard", "--no-auth", "--no-browser"], state.context), 2);
+    assert.equal(state.processCalls.length, 0);
+    assert.equal(state.browserCalls.length, 0);
+    assert.match(state.stderr.join("\n"), /--no-auth/);
+  }
+});
+
+test("--no-auth cannot be combined with --no-start", async (t) => {
+  const state = harness(t);
+
+  assert.equal(
+    await run(["dashboard", "--no-auth", "--no-start", "--no-browser"], state.context),
+    2,
+  );
+  assert.equal(state.processCalls.length, 0);
+  assert.equal(state.browserCalls.length, 0);
+  assert.equal(existsSync(defaultEnvFile(state)), false);
 });
 
 test("unhealthy macOS dashboard starts only core services then opens", async (t) => {

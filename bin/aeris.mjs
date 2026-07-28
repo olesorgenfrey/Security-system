@@ -17,6 +17,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, hostname } from "node:os";
+import { isIP } from "node:net";
 import path from "node:path";
 import { setTimeout as sleepTimer } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -39,7 +40,7 @@ function packageVersion(packageRoot = PACKAGE_ROOT) {
   try {
     return JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")).version;
   } catch {
-    return "0.1.0";
+    return "0.1.1";
   }
 }
 
@@ -342,6 +343,41 @@ function setting(runtime, context, name, fallback = undefined) {
   return context.env[name] ?? runtime.envValues[name] ?? fallback;
 }
 
+function isLiteralLoopbackAddress(rawAddress) {
+  let address = String(rawAddress ?? "").trim();
+  if (address.startsWith("[") && address.endsWith("]")) address = address.slice(1, -1);
+  const family = isIP(address);
+  if (family === 4) return address.split(".")[0] === "127";
+  if (family !== 6) return false;
+  try {
+    return new URL(`http://[${address}]/`).hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+function authModeContext(context, disabled) {
+  return {
+    ...context,
+    env: {
+      ...context.env,
+      AEGIS_API_AUTH_DISABLED: disabled ? "true" : "false",
+    },
+  };
+}
+
+function validateLocalTestMode(runtime, context, url) {
+  const bindAddress = setting(runtime, context, "AEGIS_BIND_ADDRESS", "127.0.0.1");
+  if (!isLiteralLoopbackAddress(bindAddress)) {
+    throw new CliError(
+      "--no-auth ist nur mit einer wörtlichen Loopback-Adresse in AEGIS_BIND_ADDRESS erlaubt.",
+    );
+  }
+  if (!isLiteralLoopbackAddress(new URL(url).hostname)) {
+    throw new CliError("--no-auth darf nur mit einer lokalen Dashboard-URL verwendet werden.");
+  }
+}
+
 function validateSecrets(runtime, context) {
   const values = REQUIRED_SECRETS.map((name) => setting(runtime, context, name, ""));
   const errors = [];
@@ -469,11 +505,12 @@ function runCompose(runtime, context, args, validate = true) {
   });
 }
 
-function up(runtime, context, build) {
+function up(runtime, context, build, authDisabled = false, services = undefined) {
   const args = ["up", "-d"];
   if (build) args.push("--build");
-  if (context.platform === "darwin") args.push(...MAC_CORE_SERVICES);
-  return runCompose(runtime, context, args);
+  if (services) args.push(...services);
+  else if (context.platform === "darwin") args.push(...MAC_CORE_SERVICES);
+  return runCompose(runtime, authModeContext(context, authDisabled), args);
 }
 
 async function waitForDashboard(url, waitSeconds, context) {
@@ -488,24 +525,34 @@ async function waitForDashboard(url, waitSeconds, context) {
 }
 
 async function dashboardCommand(options, context) {
+  if (options.noAuth && options.noStart) {
+    throw new CliError("--no-auth kann nicht mit --no-start kombiniert werden.");
+  }
   const { runtime, created } = createRuntime(options, context, !options.noStart);
   if (created) {
     context.stdout(`Sichere Konfiguration erstellt: ${runtime.envFile}`);
     context.stdout("Dashboard-Zugang anzeigen: aeris credentials");
   }
   const url = dashboardUrl(runtime, context);
+  if (options.noAuth) validateLocalTestMode(runtime, context, url);
   context.stdout(`Dashboard: ${url}`);
   let healthy = await context.checkHealth(url, 2000);
   if (!healthy && options.noStart) {
     context.stderr(`Dashboard ist nicht erreichbar: ${url}`);
     return 1;
   }
+  if (options.noAuth) {
+    context.stdout(
+      "WARNUNG: Die Dashboard-Anmeldung ist nur für diesen lokalen Testmodus ausgeschaltet.",
+    );
+    context.stdout("Ein normaler Aufruf von `aeris` oder `aeris up` schaltet sie wieder ein.");
+  }
   if (!healthy) {
     context.stdout("Dashboard läuft noch nicht; Aeris startet die Dienste …");
     if (context.platform === "darwin") {
       context.stdout("Hinweis: Der Linux-Host-Agent wird unter macOS nicht gestartet.");
     }
-    const result = up(runtime, context, true);
+    const result = up(runtime, context, true, options.noAuth);
     if (result !== 0) {
       context.stderr("Compose-Start fehlgeschlagen. Prüfe `aeris doctor`.");
       return result > 0 ? result : 1;
@@ -514,6 +561,18 @@ async function dashboardCommand(options, context) {
     healthy = await waitForDashboard(url, options.waitSeconds, context);
     if (!healthy) {
       context.stderr("Dashboard wurde nicht rechtzeitig gesund. Prüfe `aeris logs app migrate`.");
+      return 1;
+    }
+  } else {
+    // Reconcile even a healthy app so a normal invocation always exits test mode.
+    const result = up(runtime, context, options.noAuth, options.noAuth, ["app"]);
+    if (result !== 0) {
+      context.stderr("Anmeldemodus konnte nicht gesetzt werden. Prüfe `aeris doctor`.");
+      return result > 0 ? result : 1;
+    }
+    healthy = await waitForDashboard(url, options.waitSeconds, context);
+    if (!healthy) {
+      context.stderr("Dashboard wurde nach dem Moduswechsel nicht rechtzeitig gesund.");
       return 1;
     }
   }
@@ -576,11 +635,13 @@ export function parseArguments(argv) {
   if (command === "dashboard") {
     options.noStart = false;
     options.noBrowser = false;
+    options.noAuth = false;
     options.waitSeconds = DEFAULT_WAIT_SECONDS;
     for (let index = 0; index < remaining.length; index += 1) {
       const argument = remaining[index];
       if (argument === "--no-start") options.noStart = true;
       else if (argument === "--no-browser") options.noBrowser = true;
+      else if (argument === "--no-auth") options.noAuth = true;
       else if (argument === "--wait-seconds") {
         options.waitSeconds = positiveInteger(remaining[index + 1], "--wait-seconds");
         index += 1;
@@ -635,6 +696,7 @@ Verwendung:
   aeris credentials                  Dashboard-Zugang anzeigen
 
 Dashboard-Optionen:
+  --no-auth                          Anmeldung nur für lokalen Test ausschalten
   --no-start                         laufende Instanz nur prüfen
   --no-browser                       Browser nicht öffnen
   --wait-seconds N                   maximale Startwartezeit

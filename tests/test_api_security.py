@@ -14,7 +14,12 @@ _AUTH = ("operator", "correct horse battery staple")
 
 @pytest.fixture
 def configured_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = SimpleNamespace(api_username=_AUTH[0], api_password=SecretStr(_AUTH[1]))
+    settings = SimpleNamespace(
+        api_username=_AUTH[0],
+        api_password=SecretStr(_AUTH[1]),
+        api_auth_disabled=False,
+        api_public_bind_address="127.0.0.1",
+    )
     monkeypatch.setattr(security, "get_settings", lambda: settings)
 
 
@@ -95,12 +100,53 @@ def test_static_assets_are_also_protected() -> None:
 
 
 def test_unconfigured_auth_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = SimpleNamespace(api_username="aegis", api_password=None)
+    settings = SimpleNamespace(
+        api_username="aegis",
+        api_password=None,
+        api_auth_disabled=False,
+        api_public_bind_address="127.0.0.1",
+    )
     monkeypatch.setattr(security, "get_settings", lambda: settings)
 
     response = client.get("/api/info", auth=("aegis", "anything"))
 
     assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_explicit_local_test_mode_bypasses_authentication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SimpleNamespace(
+        api_username="aegis",
+        api_password=SecretStr("unused-dashboard-password"),
+        api_auth_disabled=True,
+        api_public_bind_address="127.0.0.1",
+    )
+    monkeypatch.setattr(security, "get_settings", lambda: settings)
+
+    response = client.get("/api/info")
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "aegis"
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_test_mode_still_fails_closed_on_non_loopback_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SimpleNamespace(
+        api_username="aegis",
+        api_password=SecretStr("unused-dashboard-password"),
+        api_auth_disabled=True,
+        api_public_bind_address="0.0.0.0",
+    )
+    monkeypatch.setattr(security, "get_settings", lambda: settings)
+
+    response = client.get("/api/info")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Authentication bypass requires a loopback binding"}
     assert response.headers["cache-control"] == "no-store"
 
 

@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from ipaddress import ip_address
+from typing import Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def is_loopback_address(value: str) -> bool:
+    """Return true only for literal IPv4/IPv6 loopback addresses."""
+    candidate = value.strip().removeprefix("[").removesuffix("]")
+    try:
+        return ip_address(candidate).is_loopback
+    except ValueError:
+        return False
 
 
 class Settings(BaseSettings):
@@ -19,6 +30,20 @@ class Settings(BaseSettings):
     # API-Zugriffsschutz
     api_username: str = Field(default="aegis", min_length=1, pattern=r".*\S.*")
     api_password: SecretStr | None = Field(default=None, min_length=16)
+    api_auth_disabled: bool = False
+    api_public_bind_address: str = "127.0.0.1"
+
+    @model_validator(mode="after")
+    def validate_local_auth_bypass(self) -> Self:
+        """Never allow the test-only auth bypass on a non-loopback binding."""
+        if not self.api_auth_disabled:
+            return self
+
+        if not is_loopback_address(self.api_public_bind_address):
+            raise ValueError(
+                "API_AUTH_DISABLED may only be enabled with a literal loopback bind address"
+            )
+        return self
 
     # Redis-Stream-Ingestion
     ingestion_pending_idle_ms: int = Field(default=60_000, gt=0)

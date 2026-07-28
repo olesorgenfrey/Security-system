@@ -55,6 +55,7 @@ def test_bare_aeris_opens_healthy_dashboard(
     cli_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     opened: list[str] = []
+    starts: list[tuple[bool, bool, tuple[str, ...]]] = []
 
     def open_browser(url: str) -> bool:
         opened.append(url)
@@ -64,14 +65,23 @@ def test_bare_aeris_opens_healthy_dashboard(
     monkeypatch.setattr(cli, "__file__", str(cli_project / "aeris/cli.py"))
     monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
     monkeypatch.setattr(cli, "_open_browser", open_browser)
-    monkeypatch.setattr(
-        cli,
-        "_up",
-        lambda *_args, **_kwargs: pytest.fail("healthy dashboard must not start Compose"),
-    )
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
+
+    def start(
+        _runtime: cli.Runtime,
+        *,
+        build: bool,
+        auth_disabled: bool = False,
+        services: Sequence[str] = (),
+    ) -> int:
+        starts.append((build, auth_disabled, tuple(services)))
+        return 0
+
+    monkeypatch.setattr(cli, "_up", start)
 
     assert cli.run([]) == 0
     assert opened == ["http://127.0.0.1:8123/"]
+    assert starts == [(False, False, ("app",))]
 
 
 def test_bare_aeris_starts_waits_and_opens_dashboard(
@@ -81,8 +91,9 @@ def test_bare_aeris_starts_waits_and_opens_dashboard(
     starts: list[bool] = []
     opened: list[str] = []
 
-    def start(_runtime: cli.Runtime, *, build: bool) -> int:
+    def start(_runtime: cli.Runtime, *, build: bool, auth_disabled: bool = False) -> int:
         starts.append(build)
+        assert auth_disabled is False
         return 0
 
     def open_browser(url: str) -> bool:
@@ -118,11 +129,86 @@ def test_dashboard_no_browser_never_opens_browser(
     cli_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
+    monkeypatch.setattr(cli, "_up", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
     monkeypatch.setattr(
         cli, "_open_browser", lambda _url: pytest.fail("--no-browser opened a browser")
     )
 
     assert cli.run(["--project-dir", str(cli_project), "dashboard", "--no-browser"]) == 0
+
+
+def test_dashboard_no_auth_is_transient_and_reconciles_healthy_app(
+    cli_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    starts: list[tuple[bool, bool, tuple[str, ...]]] = []
+
+    def start(
+        _runtime: cli.Runtime,
+        *,
+        build: bool,
+        auth_disabled: bool = False,
+        services: Sequence[str] = (),
+    ) -> int:
+        starts.append((build, auth_disabled, tuple(services)))
+        return 0
+
+    monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
+    monkeypatch.setattr(cli, "_up", start)
+
+    assert (
+        cli.run(["--project-dir", str(cli_project), "dashboard", "--no-auth", "--no-browser"]) == 0
+    )
+    assert starts == [(True, True, ("app",))]
+    assert "WARNUNG" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("AEGIS_BIND_ADDRESS", "0.0.0.0"),
+        ("AEGIS_BIND_ADDRESS", "192.0.2.10"),
+        ("AERIS_DASHBOARD_URL", "https://aegis.example.test/"),
+    ],
+)
+def test_dashboard_no_auth_rejects_nonlocal_exposure_before_compose(
+    cli_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(name, value)
+    monkeypatch.setattr(
+        cli, "_up", lambda *_args, **_kwargs: pytest.fail("unsafe test mode touched Compose")
+    )
+
+    assert (
+        cli.run(["--project-dir", str(cli_project), "dashboard", "--no-auth", "--no-browser"]) == 2
+    )
+
+
+def test_dashboard_no_auth_cannot_be_combined_with_no_start(
+    cli_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        cli, "_up", lambda *_args, **_kwargs: pytest.fail("invalid options touched Compose")
+    )
+
+    assert (
+        cli.run(
+            [
+                "--project-dir",
+                str(cli_project),
+                "dashboard",
+                "--no-auth",
+                "--no-start",
+            ]
+        )
+        == 2
+    )
 
 
 @pytest.mark.parametrize(
@@ -227,6 +313,8 @@ def test_configure_persists_project_for_invocations_from_any_directory(
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
     monkeypatch.setattr(cli, "_open_browser", lambda _url: True)
+    monkeypatch.setattr(cli, "_up", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
 
     assert cli.run(["dashboard", "--no-browser"]) == 0
 
@@ -282,6 +370,8 @@ def test_custom_dashboard_path_uses_root_health_endpoint(
     dashboard_url = "https://aegis.example.test/console/"
     monkeypatch.setenv("AERIS_DASHBOARD_URL", dashboard_url)
     monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
+    monkeypatch.setattr(cli, "_up", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
 
     assert (
         cli.run(
@@ -327,6 +417,8 @@ def test_browser_errors_are_reported_without_failing_dashboard(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(cli, "_dashboard_healthy", lambda _url: True)
+    monkeypatch.setattr(cli, "_up", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(cli, "_wait_for_dashboard", lambda *_args: True)
 
     def fail_browser(*_args: Any, **_kwargs: Any) -> bool:
         raise OSError("no browser")

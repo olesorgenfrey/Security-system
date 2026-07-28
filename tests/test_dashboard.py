@@ -38,7 +38,12 @@ class _FakeSession:
 
 @pytest.fixture
 def dashboard_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    settings = SimpleNamespace(api_username=_AUTH[0], api_password=SecretStr(_AUTH[1]))
+    settings = SimpleNamespace(
+        api_username=_AUTH[0],
+        api_password=SecretStr(_AUTH[1]),
+        api_auth_disabled=False,
+        api_public_bind_address="127.0.0.1",
+    )
     monkeypatch.setattr(security, "get_settings", lambda: settings)
 
     event = SimpleNamespace(

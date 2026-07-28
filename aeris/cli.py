@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import ipaddress
 import json
 import os
 import re
@@ -17,7 +18,7 @@ import tomllib
 import urllib.parse
 import urllib.request
 import webbrowser
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -421,6 +422,27 @@ def _dashboard_url(runtime: Runtime) -> str:
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
+def _is_literal_loopback_address(value: str | None) -> bool:
+    if value is None:
+        return False
+    candidate = value.strip().removeprefix("[").removesuffix("]")
+    try:
+        return ipaddress.ip_address(candidate).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_local_test_mode(runtime: Runtime, dashboard_url: str) -> None:
+    bind_address = _setting(runtime, "AEGIS_BIND_ADDRESS", "127.0.0.1")
+    if not _is_literal_loopback_address(bind_address):
+        raise CliError(
+            "--no-auth ist nur mit einer wörtlichen Loopback-Adresse in AEGIS_BIND_ADDRESS erlaubt."
+        )
+    dashboard_host = urllib.parse.urlsplit(dashboard_url).hostname
+    if not _is_literal_loopback_address(dashboard_host):
+        raise CliError("--no-auth darf nur mit einer lokalen Dashboard-URL verwendet werden.")
+
+
 def _health_url(dashboard_url: str) -> str:
     parsed = urllib.parse.urlsplit(dashboard_url)
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "/health", "", ""))
@@ -490,6 +512,7 @@ def _run_process(
     *,
     cwd: Path,
     quiet: bool = False,
+    environment_overrides: Mapping[str, str] | None = None,
 ) -> int:
     try:
         completed = subprocess.run(
@@ -497,6 +520,9 @@ def _run_process(
             cwd=cwd,
             check=False,
             shell=False,
+            env=(
+                None if environment_overrides is None else {**os.environ, **environment_overrides}
+            ),
             stdout=subprocess.DEVNULL if quiet else None,
             stderr=subprocess.DEVNULL if quiet else None,
         )
@@ -561,18 +587,35 @@ def _compose_prefix(runtime: Runtime, *, validate: bool = True) -> list[str]:
     ]
 
 
-def _compose(runtime: Runtime, arguments: Sequence[str]) -> int:
+def _compose(
+    runtime: Runtime,
+    arguments: Sequence[str],
+    *,
+    environment_overrides: Mapping[str, str] | None = None,
+) -> int:
     return _run_process(
         [*_compose_prefix(runtime), *arguments],
         cwd=runtime.project_dir,
+        environment_overrides=environment_overrides,
     )
 
 
-def _up(runtime: Runtime, *, build: bool) -> int:
+def _up(
+    runtime: Runtime,
+    *,
+    build: bool,
+    auth_disabled: bool = False,
+    services: Sequence[str] = (),
+) -> int:
     arguments = ["up", "-d"]
     if build:
         arguments.append("--build")
-    return _compose(runtime, arguments)
+    arguments.extend(services)
+    return _compose(
+        runtime,
+        arguments,
+        environment_overrides={"AEGIS_API_AUTH_DISABLED": "true" if auth_disabled else "false"},
+    )
 
 
 def _wait_for_dashboard(url: str, wait_seconds: int) -> bool:
@@ -590,16 +633,25 @@ def _wait_for_dashboard(url: str, wait_seconds: int) -> bool:
 
 
 def _dashboard_command(runtime: Runtime, args: argparse.Namespace) -> int:
+    if args.no_auth and args.no_start:
+        raise CliError("--no-auth kann nicht mit --no-start kombiniert werden.")
     url = _dashboard_url(runtime)
+    if args.no_auth:
+        _validate_local_test_mode(runtime, url)
     print(f"Dashboard: {url}")
     healthy = _dashboard_healthy(url)
     if not healthy and args.no_start:
         print(f"Dashboard ist nicht erreichbar: {url}", file=sys.stderr)
         return 1
 
+    if args.no_auth:
+        print(
+            "WARNUNG: Die Dashboard-Anmeldung ist nur für diesen lokalen Testmodus ausgeschaltet."
+        )
+        print("Ein normaler Aufruf von `aeris` oder `aeris up` schaltet sie wieder ein.")
     if not healthy:
         print("Dashboard läuft noch nicht; Aeris startet die Dienste …")
-        result = _up(runtime, build=True)
+        result = _up(runtime, build=True, auth_disabled=args.no_auth)
         if result != 0:
             print(
                 "Compose-Start fehlgeschlagen. Prüfe `aeris doctor` und die Logs.", file=sys.stderr
@@ -610,6 +662,26 @@ def _dashboard_command(runtime: Runtime, args: argparse.Namespace) -> int:
             print(
                 "Dashboard wurde nicht rechtzeitig gesund. "
                 f"Prüfe `aeris logs app migrate`. URL: {url}",
+                file=sys.stderr,
+            )
+            return 1
+    elif not args.no_start:
+        # Reconcile even a healthy app so a normal invocation always exits test mode.
+        result = _up(
+            runtime,
+            build=args.no_auth,
+            auth_disabled=args.no_auth,
+            services=("app",),
+        )
+        if result != 0:
+            print(
+                "Anmeldemodus konnte nicht gesetzt werden. Prüfe `aeris doctor`.",
+                file=sys.stderr,
+            )
+            return result
+        if not _wait_for_dashboard(url, args.wait_seconds):
+            print(
+                "Dashboard wurde nach dem Moduswechsel nicht rechtzeitig gesund.",
                 file=sys.stderr,
             )
             return 1
@@ -855,6 +927,11 @@ def _parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--no-start", action="store_true", help="Dienste nicht starten")
     dashboard.add_argument("--no-browser", action="store_true", help="Browser nicht öffnen")
     dashboard.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="Anmeldung nur für einen lokalen Test ausschalten",
+    )
+    dashboard.add_argument(
         "--wait-seconds",
         type=_positive_seconds,
         default=_DEFAULT_DASHBOARD_WAIT_SECONDS,
@@ -892,6 +969,7 @@ def _parser() -> argparse.ArgumentParser:
         command="dashboard",
         no_start=False,
         no_browser=False,
+        no_auth=False,
         wait_seconds=_DEFAULT_DASHBOARD_WAIT_SECONDS,
     )
     return parser

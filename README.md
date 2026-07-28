@@ -129,6 +129,7 @@ absichtlich erhalten.
 ```bash
 aeris                              # Dienste starten und Dashboard öffnen
 aeris dashboard                    # identisch zum Aufruf ohne Unterbefehl
+aeris dashboard --no-auth          # Anmeldung für einen lokalen Test ausschalten
 aeris dashboard --no-start         # nur eine laufende Instanz prüfen/öffnen
 aeris dashboard --no-browser       # starten, aber keinen Browser öffnen
 aeris dashboard --wait-seconds 60
@@ -146,6 +147,18 @@ aeris maintenance --once
 aeris --version
 aeris --help
 ```
+
+Für einen kurzen Test auf demselben Computer kann die Anmeldung ausdrücklich
+ausgeschaltet werden:
+
+```bash
+aeris dashboard --no-auth
+```
+
+Dieser Modus funktioniert nur mit wörtlichen Loopback-Adressen
+(`127.0.0.0/8` oder `::1`), verändert die `.env` nicht und wird durch den
+nächsten normalen Aufruf von `aeris` oder `aeris up` wieder ausgeschaltet.
+Für Fernzugriff bleibt die Anmeldung verpflichtend.
 
 `aeris down` löscht keine Volumes. Die CLI bietet absichtlich keinen
 `--volumes`-Schalter an, damit PostgreSQL- und Redis-Daten nicht versehentlich

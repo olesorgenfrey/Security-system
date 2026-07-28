@@ -12,7 +12,7 @@ from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from core.config import get_settings
+from core.config import get_settings, is_loopback_address
 
 _AUTH_CHALLENGE = 'Basic realm="Aegis", charset="UTF-8"'
 _SECURITY_HEADERS = {
@@ -77,6 +77,17 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return _secure_headers(await call_next(request), is_https=is_https)
 
         settings = get_settings()
+        if settings.api_auth_disabled:
+            if not is_loopback_address(settings.api_public_bind_address):
+                return _secure_headers(
+                    JSONResponse(
+                        {"detail": "Authentication bypass requires a loopback binding"},
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    ),
+                    is_https=is_https,
+                )
+            return _secure_headers(await call_next(request), is_https=is_https)
+
         if not settings.api_username or not settings.api_password:
             return _secure_headers(
                 JSONResponse(
