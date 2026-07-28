@@ -37,9 +37,12 @@ ein leeres, aber vollständiges Aegis-Skelett darauf.
       ignorieren, um Pentesting-Nutzung nicht als Bedrohung zu werten)
 - [ ] Event Bus (Redis Streams) + Normalizer
 - [ ] Events strukturiert in Postgres
-- [ ] **Dashboard-Design gemeinsam** — hier pausieren wir und gestalten das
-      UI zusammen, bevor das Minimal-Dashboard gebaut wird
+- [x] **Dashboard-Design gemeinsam** — Referenz-Design steht bereits
+      ([`dashboard/design/Aegis_Dashboard.html`](../dashboard/design/Aegis_Dashboard.html),
+      siehe `architecture.md` Abschnitt 3.7), vorgezogen vor den Rest von
+      Phase 1
 - [ ] Minimal-Dashboard: Live-Feed eingehender Auth-/Verbindungsereignisse
+      an das bestehende Design anbinden (echte Daten statt Mock-Daten)
 - [ ] Erste E-Mail/Webhook-Benachrichtigung bei auffälligen Login-Versuchen
 
 **Ergebnis:** Du siehst live, wer/was versucht, auf deinen Kali-Server

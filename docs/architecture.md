@@ -192,10 +192,22 @@ Reagiert auf Incidents mit **Playbooks** (deklarative YAML-Definitionen):
   Konfiguration.
 - **Dry-Run-Modus** als Default für jede neue Playbook-Aktion, bevor sie
   scharf geschaltet wird.
-- **Approval-Gates** für alles, was über „IP temporär blocken" hinausgeht.
+- **Approval-Gates, nach Schweregrad gestaffelt** — nicht alles braucht
+  dieselbe Reibung: kritische Aktionen brauchen eine bewusste
+  Halten-zum-Bestätigen-Geste (Long-Press), hohe eine Zwei-Klick-Bestätigung,
+  mittlere/niedrige können direkt freigegeben werden. Reibung proportional
+  zum Risiko, nicht pauschal.
 - **Rollback/TTL** — jede Blockade läuft automatisch ab, sofern nicht
   bestätigt.
-- **Vollständiges Audit-Log** jeder ausgelösten Aktion.
+- **Fail-Active vs. Fail-Closed pro Playbook**, nicht global einheitlich:
+  harmlose Maßnahmen (z. B. Rate-Limit) dürfen bei Ablauf der Freigabefrist
+  automatisch ausgeführt werden (fail-active); folgenreiche Maßnahmen
+  (IP-Block, Session-Kill) verwerfen bei Ablauf ohne Bestätigung
+  (fail-closed). Diese Einstufung ist Teil der Playbook-Definition.
+- **Globaler Not-Aus-Schalter** (SCHARF/DRY-RUN) für die gesamte
+  Response-Engine, jederzeit sichtbar und mit einem Klick erreichbar.
+- **Vollständiges Audit-Log** jeder ausgelösten Aktion, inkl. Unterscheidung
+  automatisch (⚙) vs. menschlich (☺) ausgelöst.
 
 > ⚠️ Diese Engine bauen wir bewusst **zuletzt** und beginnen im reinen
 > Beobachtungsmodus. Fehlkonfigurierte Automatik kann mehr Schaden anrichten
@@ -205,13 +217,32 @@ Reagiert auf Incidents mit **Playbooks** (deklarative YAML-Definitionen):
 ### 3.7 API & Dashboard
 
 - **API:** FastAPI (Python) — REST + WebSocket für Live-Updates.
-- **Dashboard:** wird **gemeinsam designt**, sobald diese Phase ansteht
-  (siehe Roadmap Phase 1). Grobe Funktionsbausteine:
-  - Live-Alert-/Incident-Feed
-  - Verdachtsspur-Ansicht pro Incident
-  - Response-Playbook-Verwaltung & Approval-Queue
-  - Audit-Log
-- **Frontend-Stack:** Entscheidung fällt gemeinsam beim Dashboard-Design.
+- **Dashboard:** Ein erstes, gemeinsam erarbeitetes Referenz-Design liegt
+  bereits vor: [`dashboard/design/Aegis_Dashboard.html`](../dashboard/design/Aegis_Dashboard.html).
+  Es dient als visuelle/UX-Referenz für die spätere Implementierung
+  (Frontend-Stack-Entscheidung und Datenanbindung folgen erst, wenn Phase 1
+  ansteht — das Design ist konzeptionell bereits vorgezogen).
+  Screens/Navigation:
+  - **Live-Feed** — Echtzeit-Strom eingehender Events, mit Schweregrad-Filter
+  - **Incidents** — Liste + Detailansicht mit Kill-Chain-Stages (RECON →
+    ZUGRIFF → AUSFÜHRUNG → PERSISTENZ → EXFILTRATION) und Verdachtsspur
+    (zeitlicher Trace der Einzel-Events, die zum Incident führten), inkl.
+    Konfidenz-Score
+  - **Freigaben (Approval Queue)** — offene Response-Aktionen, gestaffelte
+    Bestätigungs-Reibung nach Schweregrad (siehe 3.6), mit Begründung,
+    auszuführendem Befehl, Impact-/Risiko-Einschätzung und Dauer-Auswahl
+  - **Response** — bereits ausgelöste Aktionen mit Live-Fortschritt je
+    Schritt, Möglichkeit zum nachträglichen Zurücknehmen (Undo/Revert)
+  - **Playbooks** — Verwaltung inkl. Scharf/Dry-Run-Umschalter pro Playbook
+  - **Assets** — pro überwachtem Host (z. B. Kali-Lab vs. Geschäftsserver)
+    die exponierten Dienste, deren Erreichbarkeit und bekannte Schwachstellen
+  - **Audit-Log** — vollständige Aktionshistorie, automatisch vs. menschlich
+    gekennzeichnet
+  - Global: Theme-Umschalter (Dark/Light, Dark als Standard), Dichte-Einstellung
+    (kompakt/komfortabel), globaler SCHARF/DRY-RUN-Schalter
+- **Frontend-Stack:** Für die produktive Implementierung noch offen —
+  Entscheidung fällt, wenn das Design in eine echte, datengebundene
+  Anwendung überführt wird.
 
 ### 3.8 Alerting & Benachrichtigung
 
