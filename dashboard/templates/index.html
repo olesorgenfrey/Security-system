@@ -1,37 +1,73 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Alerts</h2>
-<div id="alerts-table"
-     hx-get="/partials/alerts"
-     hx-trigger="load, every 5s">
-  {% include "_alerts_table.html" %}
-</div>
+<a class="alert-banner{% if not alert_count %} clear{% endif %}" id="alert-banner" href="#alerts-panel">
+  <span class="alert-banner-icon" id="alert-banner-icon" aria-hidden="true">{{ "▲" if alert_count else "●" }}</span>
+  <strong id="alert-banner-title">{% if alert_count %}{{ alert_count }} {{ "offene Alerts" if alert_count != 1 else "offener Alert" }} angezeigt{% else %}Keine offenen Alerts{% endif %}</strong>
+  <span id="alert-banner-detail">{% if alert_count %}davon {{ critical_alert_count }} kritisch · sortiert nach Eingangszeit{% else %}Der aktuelle Alert-Feed ist leer.{% endif %}</span>
+  <span class="banner-link" id="alert-banner-link" {% if not alert_count %}hidden{% endif %}>Ansehen →</span>
+</a>
 
-<h2>Events</h2>
-<form class="filters"
-      hx-get="/partials/events"
-      hx-target="#events-table"
-      hx-trigger="submit, change delay:300ms"
-      hx-include="this">
-  <input type="text" name="search" placeholder="Suche in Nachricht…" value="{{ filters.search }}">
-  <input type="text" name="host" placeholder="Host" value="{{ filters.host }}">
-  <select name="category">
-    <option value="">Alle Kategorien</option>
-    {% for cat in ["authentication", "process", "network", "file", "host"] %}
-    <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
-    {% endfor %}
-  </select>
-  <select name="min_severity">
-    {% for level in [0, 20, 40, 60, 80] %}
-    <option value="{{ level }}" {% if filters.min_severity == level %}selected{% endif %}>ab Severity {{ level }}</option>
-    {% endfor %}
-  </select>
-</form>
+<section class="kpi-grid" aria-label="Übersicht">
+  <article class="kpi-card">
+    <span class="kpi-label">Alerts geladen</span>
+    <div><strong id="kpi-alert-count">{{ alert_count }}</strong><span>maximal 20</span></div>
+  </article>
+  <article class="kpi-card{% if critical_alert_count %} critical{% endif %}" id="kpi-critical-card">
+    <span class="kpi-label">Kritisch geladen</span>
+    <div><strong id="kpi-critical-count">{{ critical_alert_count }}</strong><span>Severity ≥ 80</span></div>
+  </article>
+  <article class="kpi-card">
+    <span class="kpi-label">Events geladen</span>
+    <div><strong id="kpi-event-count">{{ events | length }}</strong><span>neueste 100</span></div>
+  </article>
+  <article class="kpi-card">
+    <span class="kpi-label">Hosts im Feed</span>
+    <div><strong id="kpi-host-count">{{ host_count }}</strong><span>aktuelle Auswahl</span></div>
+  </article>
+</section>
 
-<div id="events-table"
-     hx-get="/partials/events"
-     hx-trigger="load, every 3s"
-     hx-include="form.filters">
-  {% include "_events_table.html" %}
-</div>
+<section class="data-panel" id="events-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Ereignisstrom</h2>
+      <span class="panel-meta">Automatische Aktualisierung</span>
+    </div>
+    <form class="filters" id="event-filters">
+      <label class="visually-hidden" for="filter-search">Nachricht durchsuchen</label>
+      <input id="filter-search" type="search" name="search" placeholder="Nachricht suchen…" value="{{ filters.search }}" maxlength="500" autocomplete="off">
+      <label class="visually-hidden" for="filter-host">Host filtern</label>
+      <input id="filter-host" type="text" name="host" placeholder="Host" value="{{ filters.host }}" maxlength="255" autocomplete="off">
+      <label class="visually-hidden" for="filter-category">Kategorie filtern</label>
+      <select id="filter-category" name="category">
+        <option value="">Alle Kategorien</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <label class="visually-hidden" for="filter-severity">Mindest-Severity</label>
+      <select id="filter-severity" name="min_severity">
+        {% for level, label in [(0, "Alle"), (20, "Niedrig"), (40, "Mittel"), (60, "Hoch"), (80, "Kritisch")] %}
+        <option value="{{ level }}" {% if filters.min_severity == level %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="icon-button" id="reset-filters" type="reset" title="Filter zurücksetzen" aria-label="Filter zurücksetzen">↺</button>
+      <button class="icon-button" id="toggle-polling" type="button" title="Live-Feed pausieren" aria-label="Live-Feed pausieren" aria-pressed="false">Ⅱ</button>
+    </form>
+  </header>
+  <div id="events-table" class="table-region" aria-live="polite">
+    {% include "_events_table.html" %}
+  </div>
+</section>
+
+<section class="data-panel alerts-panel" id="alerts-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Offene Alerts</h2>
+      <span class="panel-meta" id="alerts-panel-count">Neueste {{ alerts | length }} Einträge</span>
+    </div>
+  </header>
+  <div id="alerts-table" class="table-region" aria-live="polite">
+    {% include "_alerts_table.html" %}
+  </div>
+</section>
 {% endblock %}

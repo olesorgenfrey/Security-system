@@ -1,26 +1,34 @@
-<table class="events">
-  <thead>
-    <tr>
-      <th>Zeit</th>
-      <th>Host</th>
-      <th>Dataset</th>
-      <th>Kategorie</th>
-      <th>Severity</th>
-      <th>Nachricht</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for e in events %}
-    <tr class="sev-{{ 'high' if e.severity >= 60 else ('mid' if e.severity >= 30 else 'low') }}">
-      <td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-      <td>{{ e.host_name }}</td>
-      <td>{{ e.dataset }}</td>
-      <td>{{ e.category | join(", ") }}</td>
-      <td>{{ e.severity }}</td>
-      <td>{{ e.message }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="6" class="empty">Keine Events (noch) gefunden.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="table-scroll">
+  <table class="data-table events-table">
+    <caption class="visually-hidden">Neueste Sicherheitsereignisse</caption>
+    <thead>
+      <tr>
+        <th>Zeit</th>
+        <th>Schweregrad</th>
+        <th>Quelle</th>
+        <th>Ziel / Dienst</th>
+        <th>Kategorie</th>
+        <th>Ergebnis</th>
+        <th>Zusammenfassung</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      {% set severity_class = "critical" if e.severity >= 80 else ("high" if e.severity >= 60 else ("medium" if e.severity >= 30 else "info")) %}
+      {% set severity_label = "Kritisch" if e.severity >= 80 else ("Hoch" if e.severity >= 60 else ("Mittel" if e.severity >= 30 else "Info")) %}
+      {% set severity_glyph = "▲" if e.severity >= 80 else ("◆" if e.severity >= 60 else ("●" if e.severity >= 30 else "–")) %}
+      <tr class="severity-{{ severity_class }} data-row" data-severity="{{ e.severity }}" data-host="{{ e.host_name }}">
+        <td class="cell-time"><time datetime="{{ e.timestamp.isoformat() }}">{{ e.timestamp.strftime("%H:%M:%S") }}</time></td>
+        <td class="cell-severity"><span aria-hidden="true">{{ severity_glyph }}</span> {{ severity_label }} <small>{{ e.severity }}</small></td>
+        <td class="cell-mono">{{ e.source_ip or "–" }}</td>
+        <td><strong>{{ e.host_name }}</strong><span class="cell-sub">{{ e.dataset }}</span></td>
+        <td class="cell-mono">{{ e.category | join(", ") if e.category else "–" }}</td>
+        <td><span class="outcome outcome-{{ e.outcome }}">{{ e.outcome }}</span></td>
+        <td class="cell-summary">{{ e.message or "–" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">Keine Events für die aktuelle Auswahl.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

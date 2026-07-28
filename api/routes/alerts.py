@@ -9,7 +9,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from core.storage.database import get_session
-from core.storage.models import Alert
+from core.storage.models import Alert, AlertStatus
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -24,8 +24,8 @@ def build_alerts_query(status: str | None) -> Select[tuple[Alert]]:
 @router.get("")
 def list_alerts(
     session: Annotated[Session, Depends(get_session)],
-    status: str | None = None,
-    limit: int = Query(default=50, le=500),
+    status: AlertStatus | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
 ) -> list[dict[str, object]]:
     stmt = build_alerts_query(status).limit(limit)
     records = session.execute(stmt).scalars().all()

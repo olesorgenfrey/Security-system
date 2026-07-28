@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
+from core.schemas.event import EventCategory
 from core.storage.database import get_session
 from core.storage.models import EventRecord
 
@@ -35,11 +36,11 @@ def build_events_query(
 @router.get("")
 def list_events(
     session: Annotated[Session, Depends(get_session)],
-    host: str | None = None,
-    category: str | None = None,
-    min_severity: int = 0,
-    search: str | None = None,
-    limit: int = Query(default=100, le=1000),
+    host: Annotated[str | None, Query(max_length=255)] = None,
+    category: EventCategory | None = None,
+    min_severity: Annotated[int, Query(ge=0, le=100)] = 0,
+    search: Annotated[str | None, Query(max_length=500)] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[dict[str, object]]:
     stmt = build_events_query(host, category, min_severity, search).limit(limit)
     records = session.execute(stmt).scalars().all()

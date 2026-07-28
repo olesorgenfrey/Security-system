@@ -1,9 +1,8 @@
 # Architektur — Aegis Defensive Security Platform
 
-Dieses Dokument beschreibt die Zielarchitektur. Es ist ein lebendes Dokument
-und wird pro Phase verfeinert. Grundlage sind konkrete Entscheidungen, die
-gemeinsam getroffen wurden (siehe Abschnitt 0) — kein abstrakter
-Wunschzettel, sondern ein Plan für ein reales Setup.
+Dieses Dokument trennt die heute laufende MVP-Architektur vom späteren
+Zielbild. Nicht ausdrücklich als „implementiert" bezeichnete Scanner-,
+Korrelations- und Response-Komponenten sind geplant, aber noch nicht vorhanden.
 
 ---
 
@@ -15,20 +14,19 @@ Wunschzettel, sondern ein Plan für ein reales Setup.
   eigene IP kommen auf eine harte Allowlist, die die Response-Engine
   **niemals** sperren darf — Selbst-Aussperren ist das größte Betriebsrisiko.
 - **Doppelnutzung des Kali-Servers:** Der Server dient gleichzeitig als
-  Pentesting-Werkzeugkasten (nmap, Metasploit, etc.). Aegis überwacht daher
-  bewusst nur die **eingehende** Angriffsfläche (was von außen auf den
-  Server zukommt), nicht die eigene, lokale Tool-Nutzung. Das vermeidet
-  False-Positives durch die eigene Pentesting-Arbeit.
+  Pentesting-Werkzeugkasten (nmap, Metasploit, etc.). Das Ziel ist daher, nur
+  die **eingehende** Angriffsfläche als Bedrohung zu bewerten und eigene,
+  lokale Tool-Nutzung als legitim zu klassifizieren. Der aktuelle MVP sammelt
+  Prozess-/Socket-Snapshots noch breiter; diese Abgrenzung ist ausstehend.
 - **Zweiter Server (später, vorsichtiger):** hostet geschäftlich genutzte
   Web-Apps. Wird erst angebunden, wenn sich Aegis auf dem Kali-Server
   bewährt hat — dort gilt von Anfang an ein deutlich konservativerer
   Response-Modus (mehr Freigaben, weniger Automatik).
 - **Motivation:** reale Absicherung **und** Lernen beim Selberbauen — beides
   gleichrangig, keines geht auf Kosten des anderen.
-- **Zusammenarbeit:** Ein Großteil des Codes wird von Claude geschrieben;
-  Entscheidungen an Weichenstellungen werden kurz erklärt und vom
-  Projektinhaber freigegeben/korrigiert. Das Dashboard-Design wird
-  **gemeinsam** gestaltet, sobald diese Phase ansteht.
+- **Dashboard-Referenz:**
+  [`dashboard/design/Aegis_Dashboard.html`](../dashboard/design/Aegis_Dashboard.html)
+  ist das verbindliche Zielbild; der laufende MVP nähert sich ihm inkrementell.
 
 ---
 
@@ -57,6 +55,12 @@ Wunschzettel, sondern ein Plan für ein reales Setup.
 
 ## 2. Gesamtarchitektur (High-Level)
 
+Das Diagramm zeigt das Zielbild; „später" markierte Knoten gehören noch nicht
+zum ausführbaren System. Der aktuelle Datenpfad ist:
+
+`Host-Agent → Redis Stream → Ingestion-Worker → PostgreSQL (Events, Alerts,
+Notification-Outbox) → Notification-Worker sowie FastAPI/Jinja-Dashboard`.
+
 ```mermaid
 flowchart TB
     subgraph Outside["Von außen (zu verteidigen)"]
@@ -71,7 +75,7 @@ flowchart TB
 
     subgraph Collect["1 · Collection Layer"]
         A["Host-Agent<br/>(Auth-Log, Prozesse, Verbindungen)"]
-        S["Netzwerk-Sensor<br/>(Suricata, später)"]
+        S["Netzwerk-Sensor<br/>(Suricata, geplant)"]
     end
 
     subgraph Core["2 · Core Platform"]
@@ -79,9 +83,9 @@ flowchart TB
         NORM["Normalizer<br/>(ECS-Schema)"]
         STORE[("Store<br/>Postgres")]
         DET["Detection Engine<br/>Regeln + Anomalie"]
-        CORR["Correlation &<br/>Incident-Engine"]
-        SOAR["Adaptive Response<br/>(Playbooks + Safety-Layer)"]
-        VULN["Vuln-Scanner<br/>(später)"]
+        CORR["Correlation & Incident-Engine<br/>(geplant)"]
+        SOAR["Adaptive Response<br/>(geplant)"]
+        VULN["Vuln-Scanner<br/>(geplant)"]
     end
 
     subgraph UI["3 · Präsentation & Steuerung"]
@@ -92,7 +96,7 @@ flowchart TB
 
     ATT --> SSHD --> A
     ATT --> SVC --> A
-    LOCAL -.explizit ignoriert.-> A
+    LOCAL -."Ziel: als legitim klassifizieren".-> A
     A --> BUS
     S --> BUS
     BUS --> NORM --> STORE
@@ -115,56 +119,63 @@ Sammelt Rohdaten an der Quelle und schickt normalisierte Events an den Bus.
 Startfokus: **ein** Host-Agent auf dem Kali-Server, der gezielt eingehende
 Aktivität beobachtet.
 
-- **Host-Agent** (Python)
-  - Auth-Log-Tailing (`/var/log/auth.log`, journald) — SSH-Login-Versuche,
-    erfolgreich/fehlgeschlagen, neue Nutzer, `sudo`-Nutzung
-  - Netzwerkverbindungs-Monitoring (psutil) — **eingehende** Verbindungen
-    auf exponierte Ports; ausgehende, vom Nutzer selbst initiierte
-    Verbindungen werden nicht als Bedrohung gewertet
-  - Neue-Prozess-Erkennung nach verdächtigem Login (Hinweis auf
-    Post-Exploitation, nicht auf reguläre Pentesting-Arbeit)
-  - Führt lokale Response-Aktionen aus (IP blocken, Session killen) —
-    **niemals** gegen die Allowlist
-- **Netzwerk-Sensor** (spätere Phase) — Wrapper um **Suricata** für
-  Signatur-basierte Netzwerk-Erkennung, EVE-JSON-Output.
+- **Heute implementiert:** Datei-Tailing eines konfigurierbaren Auth-Logs,
+  Parsen erfolgreicher/fehlgeschlagener Logins, Events für neu beobachtete
+  Prozesse und aggregierte Socket-Zähler. Das echte Host-Log-Verzeichnis wird
+  read-only eingebunden; Host-PID- und Netzwerk-Namespace liefern die nötige
+  Sicht auf Prozesse und Sockets.
+- **Noch nicht implementiert:** direktes journald-Lesen, semantische
+  Beschränkung der Socket-/Prozess-Snapshots auf ausschließlich eingehende
+  Aktivität, loginbezogene Prozessketten, lokale Response-Aktionen und der
+  Suricata-Netzwerksensor.
 
 > **Prinzip:** Collectors sind „dumm" — sie sammeln und normalisieren, treffen
 > aber keine Erkennungsentscheidungen. Das hält sie leichtgewichtig.
 
 ### 3.2 Event Bus & Normalizer
 
-- **Event Bus:** Redis Streams zum Start (einfach, robust, persistent).
+- **Event Bus:** authentifizierte Redis Streams mit AOF-Persistenz. Der
+  Ingestion-Consumer bestätigt erst erfolgreich verarbeitete Nachrichten,
+  übernimmt verwaiste Pending-Einträge erneut und verschiebt dauerhaft
+  fehlerhafte Nachrichten nach begrenzten Versuchen in einen größenbegrenzten
+  Dead-Letter-Stream.
 - **Normalizer:** überführt alle Events in ein **gemeinsames Schema**,
   angelehnt an **ECS (Elastic Common Schema)** — Felder wie `@timestamp`,
-  `host.name`, `source.ip`, `event.category`, `event.severity`,
-  `event.direction` (inbound/outbound/local — zentral für unseren
-  Scope-Filter).
+  `host.name`, `source.ip`, `event.category` und `event.severity`.
+  Eine explizite Richtungsklassifikation (`inbound/outbound/local`) ist als
+  spätere Schema-Anreicherung geplant und heute noch kein Event-Feld.
 
 ### 3.3 Storage
 
-- **Start:** PostgreSQL — deckt Events, Assets, Incidents und Audit-Log ab.
-- **Retention-Policies** pro Event-Kategorie konfigurierbar.
+- **Start:** PostgreSQL. Aktiv genutzt werden Events, Alerts und die
+  Notification-Outbox. Modelle für Assets, Incidents und Audit-Log existieren
+  als Grundlage, besitzen aber noch keine vollständigen Workflows.
+- **Implementiert:** globale, tagebasierte Event-Retention in begrenzten
+  Batches durch einen eigenen Maintenance-Worker.
+- **Geplant:** unterschiedliche Retention-Policies pro Event-Kategorie.
 - Skalierung (OpenSearch etc.) erst, wenn tatsächlich nötig — kein
   Over-Engineering für ein Ein-Server-MVP.
 
 ### 3.4 Detection Engine
 
-Zwei Erkennungsarten zum Start, dritte folgt:
+Drei leichtgewichtige Erkennungsarten sind im MVP implementiert:
 
-1. **Regelbasiert** — einfache, klare Regeln zuerst (z. B. „N
-   fehlgeschlagene SSH-Logins von derselben IP in X Minuten"), später
-   erweiterbar auf **Sigma-Regeln** (offener Standard, großes
-   Community-Repository) für mehr Deckungsbreite.
-2. **Verhaltensbasiert (Post-Compromise)** — Signale, die auf einen
-   erfolgreichen Einbruch *nach* einem Login hindeuten: neuer Prozess mit
-   ungewöhnlichem Elternprozess, neue Nutzerkonten, Rechte-Eskalation,
-   unerwartete ausgehende Verbindung direkt nach fremdem Login.
-3. **Anomalie-/statistisch** (später) — Baselines für normales Verhalten,
-   ML erst wenn genug echte Daten gesammelt wurden.
+1. **Schwellwertregel** — fehlgeschlagene SSH-Logins derselben Quell-IP auf
+   demselben Zielhost innerhalb eines Zeitfensters, mit Cooldown.
+2. **Keyword-Regeln** — kuratierte YAML-Muster, aktuell neues Admin-/Sudo-
+   Konto und Reverse-Shell-Indikatoren, je Host dedupliziert.
+3. **Statistisch** — Z-Score auf der Prozess-Erstellungsrate pro Host mit
+   Mindestmenge, Baseline-Fenstern und Cooldown.
+
+Vollständige Sigma-Unterstützung, Prozessketten-Korrelation und ML sind
+weiterhin geplant.
 
 Jede Erkennung erzeugt einen **Alert** mit Severity und Kontext.
 
 ### 3.5 Correlation & Incident-Engine
+
+**Status: geplant.** Die vorhandenen Alert-Datensätze werden noch nicht zu
+Incidents oder Angriffsketten zusammengefasst.
 
 - Fasst zusammenhängende Alerts zu **Incidents** zusammen (gleiche Quelle,
   Zeitfenster, Angriffskette: z. B. Brute-Force → erfolgreicher Login →
@@ -174,6 +185,8 @@ Jede Erkennung erzeugt einen **Alert** mit Severity und Kontext.
   führten zum Incident (Basis für „wie kam der Angreifer rein").
 
 ### 3.6 Adaptive Response Engine — das Herzstück
+
+**Status: geplant.** Es existiert noch keine ausführende Response-Engine.
 
 Reagiert auf Incidents mit **Playbooks** (deklarative YAML-Definitionen):
 `Trigger → Aktionen → Safety-Gate`.
@@ -216,14 +229,17 @@ Reagiert auf Incidents mit **Playbooks** (deklarative YAML-Definitionen):
 
 ### 3.7 API & Dashboard
 
-- **API:** FastAPI (Python) — REST + WebSocket für Live-Updates.
-- **Dashboard:** Ein erstes, gemeinsam erarbeitetes Referenz-Design liegt
+- **API:** FastAPI (Python) mit REST-/HTML-Endpunkten. Alle fachlichen Routen
+  sind per HTTP Basic geschützt; nur `/health` bleibt für Container-Probes
+  offen. Der Browser aktualisiert Events alle drei und Alerts alle fünf
+  Sekunden per Fetch-Polling. WebSockets sind nicht implementiert.
+- **Dashboard:** Das verbindliche Referenz-Design liegt
   bereits vor: [`dashboard/design/Aegis_Dashboard.html`](../dashboard/design/Aegis_Dashboard.html).
-  Es dient als visuelle/UX-Referenz für die spätere Implementierung
-  (Frontend-Stack-Entscheidung und Datenanbindung folgen erst, wenn Phase 1
-  ansteht — das Design ist konzeptionell bereits vorgezogen).
+  Die laufende Jinja/CSS/JavaScript-Oberfläche setzt davon derzeit den
+  Event-/Alert-MVP um. Die folgenden weiteren Screens bleiben Zielumfang des
+  Referenzdesigns:
   Screens/Navigation:
-  - **Live-Feed** — Echtzeit-Strom eingehender Events, mit Schweregrad-Filter
+  - **Live-Feed** — laufend aktualisierte Events mit Schweregrad-Filter
   - **Incidents** — Liste + Detailansicht mit Kill-Chain-Stages (RECON →
     ZUGRIFF → AUSFÜHRUNG → PERSISTENZ → EXFILTRATION) und Verdachtsspur
     (zeitlicher Trace der Einzel-Events, die zum Incident führten), inkl.
@@ -240,15 +256,17 @@ Reagiert auf Incidents mit **Playbooks** (deklarative YAML-Definitionen):
     gekennzeichnet
   - Global: Theme-Umschalter (Dark/Light, Dark als Standard), Dichte-Einstellung
     (kompakt/komfortabel), globaler SCHARF/DRY-RUN-Schalter
-- **Frontend-Stack:** Für die produktive Implementierung noch offen —
-  Entscheidung fällt, wenn das Design in eine echte, datengebundene
-  Anwendung überführt wird.
+- **Frontend-Stack:** serverseitiges Jinja mit lokalem CSS und JavaScript. Es
+  werden keine CDN-Skripte zur Laufzeit benötigt.
 
 ### 3.8 Alerting & Benachrichtigung
 
-- Kanäle: E-Mail, Webhook — Start mit einem einfachen Kanal, Ausbau je
-  nach Bedarf.
-- Eskalationsstufen nach Severity.
+- Implementierte Kanäle: E-Mail und Webhook, aktivierbar über Konfiguration.
+- Ingestion legt Zustellungen atomar mit den zugehörigen Datenbankänderungen in
+  einer Outbox ab. Ein eigener Worker liefert sie mit begrenztem exponentiellem
+  Retry aus; endgültige Fehlschläge bleiben nachvollziehbar gespeichert.
+- Ein Severity-Schwellwert steuert direkte Event-Benachrichtigungen; Alerts
+  werden ebenfalls vorgemerkt.
 
 ### 3.9 Vulnerability Scanner (spätere Phase)
 
@@ -269,7 +287,7 @@ Roadmap.
 | IDS (später) | **Suricata** | Industriestandard, EVE-JSON-Output |
 | Detection-Regeln | **eigene Regeln zuerst, Sigma später** | Klarheit vor Vollständigkeit |
 | Scanner (später) | **nmap, nuclei** | Bewährt, breit abgedeckt |
-| Frontend | **gemeinsam zu entscheiden** | Siehe Dashboard-Phase |
+| Frontend | **Jinja + lokales CSS/JavaScript** | Kleiner, selbst gehosteter Polling-MVP; Referenzdesign bleibt verbindlich |
 | Deployment | **Docker Compose** | Ein-Kommando-Setup auf dem Kali-VPS |
 | CI | **GitHub Actions** | Lint, Tests, Security-Scan der eigenen Codebasis |
 
@@ -280,12 +298,15 @@ Roadmap.
 ```
 aegis/
 ├── docs/                    # Architektur, Roadmap
+├── aeris/                   # installierbare Betriebs-CLI
 ├── core/
 │   ├── ingestion/           # Event Bus + Normalizer
 │   ├── detection/           # Regel-Engine (später + Sigma)
 │   ├── correlation/         # Incident-Engine
 │   ├── response/            # Playbooks + Safety-Layer (Allowlist!)
-│   └── storage/             # DB-Modelle, Migrationen
+│   ├── storage/             # DB-Modelle, Migrationen
+│   ├── notification_worker.py # persistente Benachrichtigungszustellung
+│   └── maintenance.py       # Event-Retention
 ├── collectors/
 │   └── host_agent/          # Auth-Log, Prozesse, Verbindungen (Kali-VPS)
 ├── api/                     # FastAPI-App
@@ -315,13 +336,24 @@ aegis/
 - **Zweiter Server (geschäftlich genutzt):** hier gilt beim Rollout ein
   deutlich konservativerer Modus — mehr Freigaben, weniger Automatik, bis
   Vertrauen in die Erkennung aufgebaut ist.
+- **Deployment-Baseline:** API, PostgreSQL und Redis binden standardmäßig nur
+  an Loopback; Datenbank-, Redis- und API-Secrets sind Pflichtwerte. Redis ist
+  authentifiziert. App und Worker laufen non-root mit read-only Root-Dateisystem,
+  ohne Linux-Capabilities und mit `no-new-privileges`. Nur der Host-Agent läuft
+  wegen `/proc` als Root, ohne `privileged` und mit zwei eng begrenzten
+  Lesefähigkeiten. Remote-Zugriff erfolgt über SSH-Tunnel oder TLS-Reverse-
+  Proxy; siehe [`deployment.md`](deployment.md).
 
 ---
 
 ## 7. Offene Punkte für später
 
-- **Dashboard-Design** — gemeinsam, sobald Phase 1 ansteht.
 - **Projektname** — „Aegis" ist Arbeitstitel, kann noch geändert werden.
+- **Dashboard-Ausbau** — das verbindliche Referenzdesign über den aktuellen
+  Event-/Alert-MVP hinaus umsetzen.
+- **Feingranulare Rollen/Rechte** — aktuell existiert ein einzelner
+  administrativer HTTP-Basic-Zugang, noch keine Benutzer-/Rollenverwaltung.
+- **Kategoriespezifische Retention** — heute gilt ein globales Event-Alter.
 - **Rollout auf den zweiten Server** — Zeitpunkt und konkrete Anpassungen
   werden entschieden, sobald der Kern auf dem Kali-Server läuft.
 

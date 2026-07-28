@@ -1,93 +1,236 @@
+name: aegis
+
+x-build: &app-build
+  context: ..
+  dockerfile: Dockerfile
+
+x-core-environment: &core-environment
+  DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-aegis}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:-aegis}"
+  REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/0"
+  SCOPE_FILE: /app/config/scope.yaml
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-notification-routing: &notification-routing
+  NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+  NOTIFY_EMAIL_TO: ${NOTIFY_EMAIL_TO:-}
+  NOTIFY_SMTP_HOST: ${NOTIFY_SMTP_HOST:-}
+  NOTIFY_MAX_ATTEMPTS: ${NOTIFY_MAX_ATTEMPTS:-5}
+
+x-runtime-security: &runtime-security
+  init: true
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: aegis
-      POSTGRES_PASSWORD: aegis
-      POSTGRES_DB: aegis
+      POSTGRES_USER: ${POSTGRES_USER:-aegis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-aegis}
     volumes:
       - aegis_pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${AEGIS_BIND_ADDRESS:-127.0.0.1}:${AEGIS_POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aegis"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        exec redis-server --appendonly yes --appendfsync everysec
+        --requirepass "$$REDIS_PASSWORD"
+    volumes:
+      - aegis_redisdata:/data
     ports:
-      - "6379:6379"
+      - "${AEGIS_BIND_ADDRESS:-127.0.0.1}:${AEGIS_REDIS_PORT:-6379}:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  migrate:
+    build: *app-build
+    command: ["alembic", "upgrade", "head"]
+    environment: *core-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    <<: *runtime-security
+    restart: "no"
+    logging: *default-logging
 
   app:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    build: *app-build
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://aegis:aegis@db:5432/aegis
-      REDIS_URL: redis://redis:6379/0
-      SCOPE_FILE: /app/config/scope.yaml
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      <<: *core-environment
+      API_USERNAME: ${AEGIS_API_USERNAME:-aegis}
+      API_PASSWORD: ${AEGIS_API_PASSWORD:?AEGIS_API_PASSWORD must be set in .env}
     ports:
-      - "8000:8000"
+      - "${AEGIS_BIND_ADDRESS:-127.0.0.1}:${AEGIS_HTTP_PORT:-8000}:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:
-      - ../config:/app/config:ro
+      - "${AERIS_CONFIG_DIR:-../config}:/app/config:ro"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    <<: *runtime-security
+    logging: *default-logging
 
   worker:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    command: ["uv", "run", "python", "-m", "core.ingestion.consumer"]
+    build: *app-build
+    command: ["python", "-m", "core.ingestion.consumer"]
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://aegis:aegis@db:5432/aegis
-      REDIS_URL: redis://redis:6379/0
-      SCOPE_FILE: /app/config/scope.yaml
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
-      NOTIFY_EMAIL_TO: ${NOTIFY_EMAIL_TO:-}
-      NOTIFY_SMTP_HOST: ${NOTIFY_SMTP_HOST:-}
+      <<: [*core-environment, *notification-routing]
+      NOTIFY_SEVERITY_THRESHOLD: ${NOTIFY_SEVERITY_THRESHOLD:-70}
+      INGESTION_PENDING_IDLE_MS: ${INGESTION_PENDING_IDLE_MS:-60000}
+      INGESTION_MAX_DELIVERY_ATTEMPTS: ${INGESTION_MAX_DELIVERY_ATTEMPTS:-5}
+      INGESTION_RECOVERY_BATCH_SIZE: ${INGESTION_RECOVERY_BATCH_SIZE:-50}
+      INGESTION_RECOVERY_INTERVAL_SECONDS: ${INGESTION_RECOVERY_INTERVAL_SECONDS:-30}
+      INGESTION_ERROR_BACKOFF_SECONDS: ${INGESTION_ERROR_BACKOFF_SECONDS:-5}
+      INGESTION_DLQ_MAXLEN: ${INGESTION_DLQ_MAXLEN:-10000}
+      DETECTION_BRUTE_FORCE_THRESHOLD: ${DETECTION_BRUTE_FORCE_THRESHOLD:-3}
+      DETECTION_BRUTE_FORCE_WINDOW_MINUTES: ${DETECTION_BRUTE_FORCE_WINDOW_MINUTES:-5}
+      DETECTION_BRUTE_FORCE_COOLDOWN_MINUTES: ${DETECTION_BRUTE_FORCE_COOLDOWN_MINUTES:-15}
+      DETECTION_KEYWORD_COOLDOWN_MINUTES: ${DETECTION_KEYWORD_COOLDOWN_MINUTES:-15}
+      ANOMALY_WINDOW_SECONDS: ${ANOMALY_WINDOW_SECONDS:-60}
+      ANOMALY_BASELINE_WINDOWS: ${ANOMALY_BASELINE_WINDOWS:-10}
+      ANOMALY_MIN_COUNT: ${ANOMALY_MIN_COUNT:-5}
+      ANOMALY_Z_THRESHOLD: ${ANOMALY_Z_THRESHOLD:-3.0}
+      ANOMALY_COOLDOWN_MINUTES: ${ANOMALY_COOLDOWN_MINUTES:-15}
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:
-      - ../config:/app/config:ro
+      - "${AERIS_CONFIG_DIR:-../config}:/app/config:ro"
+    <<: *runtime-security
+    logging: *default-logging
+
+  notification_worker:
+    build: *app-build
+    command: ["python", "-m", "core.notification_worker"]
+    restart: unless-stopped
+    environment:
+      <<: [*core-environment, *notification-routing]
+      NOTIFY_EMAIL_FROM: ${NOTIFY_EMAIL_FROM:-aegis@localhost}
+      NOTIFY_SMTP_PORT: ${NOTIFY_SMTP_PORT:-587}
+      NOTIFY_SMTP_USER: ${NOTIFY_SMTP_USER:-}
+      NOTIFY_SMTP_PASSWORD: ${NOTIFY_SMTP_PASSWORD:-}
+      NOTIFY_RETRY_BASE_SECONDS: ${NOTIFY_RETRY_BASE_SECONDS:-30}
+      NOTIFY_RETRY_MAX_SECONDS: ${NOTIFY_RETRY_MAX_SECONDS:-3600}
+      NOTIFY_WORKER_POLL_SECONDS: ${NOTIFY_WORKER_POLL_SECONDS:-5}
+      NOTIFY_WORKER_BATCH_SIZE: ${NOTIFY_WORKER_BATCH_SIZE:-50}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    <<: *runtime-security
+    logging: *default-logging
+
+  maintenance:
+    build: *app-build
+    command: ["python", "-m", "core.maintenance"]
+    restart: unless-stopped
+    environment:
+      <<: *core-environment
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-90}
+      EVENT_RETENTION_BATCH_SIZE: ${EVENT_RETENTION_BATCH_SIZE:-1000}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-86400}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    <<: *runtime-security
+    logging: *default-logging
 
   host_agent:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    command: ["uv", "run", "python", "-m", "collectors.host_agent.agent"]
-    # PID-/Netzwerk-Namespace des umgebenden Kali-Containers teilen, statt nur den
-    # eigenen (fast leeren) Container-Namespace zu sehen — sonst gibt es de facto
-    # nichts zu überwachen (siehe architecture.md §3.1: Prozess-/Netzwerk-Monitoring).
-    pid: "host"
-    network_mode: "host"
-    privileged: true
+    build: *app-build
+    command: ["python", "-m", "collectors.host_agent.agent"]
+    restart: unless-stopped
+    # The host namespaces are required for host process/socket visibility. The
+    # agent is not privileged and receives no write/network-admin capability.
+    pid: host
+    network_mode: host
+    user: "0:0"
     environment:
-      REDIS_URL: redis://localhost:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@${HOST_AGENT_REDIS_HOST:-127.0.0.1}:${AEGIS_REDIS_PORT:-6379}/0"
       SCOPE_FILE: /app/config/scope.yaml
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      HOST_AGENT_HOSTNAME: ${HOST_AGENT_HOSTNAME:-kali-kasm}
-      HOST_AGENT_LOG_PATHS: /var/log/aegis-demo/auth.log
+      HOST_AGENT_HOSTNAME: ${HOST_AGENT_HOSTNAME:-monitored-host}
+      HOST_AGENT_LOG_PATHS: ${HOST_AGENT_LOG_PATHS:-/host/var/log/auth.log}
+      HOST_AGENT_SNAPSHOT_INTERVAL_SECONDS: ${HOST_AGENT_SNAPSHOT_INTERVAL_SECONDS:-15}
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - ../config:/app/config:ro
-      - ../logs:/var/log/aegis-demo
+      - "${AERIS_CONFIG_DIR:-../config}:/app/config:ro"
+      # Mount the directory, not a single file, so tailing survives log rotation.
+      - type: bind
+        source: ${HOST_LOG_DIR:-/var/log}
+        target: /host/var/log
+        read_only: true
+        bind:
+          create_host_path: false
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_READ_SEARCH
+      - SYS_PTRACE
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    logging: *default-logging
 
 volumes:
   aegis_pgdata:
+  aegis_redisdata:

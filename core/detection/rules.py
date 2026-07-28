@@ -8,7 +8,7 @@ Anomalie-Detektoren) docken hier künftig als weitere `evaluate_*`-Funktionen an
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,11 +23,16 @@ MITRE_BRUTE_FORCE = "T1110"
 
 
 def _has_recent_open_alert(
-    session: Session, rule_id: str, source_ip: str, cooldown_minutes: int
+    session: Session,
+    rule_id: str,
+    host_name: str,
+    source_ip: str,
+    cooldown_minutes: int,
 ) -> bool:
-    cutoff = datetime.utcnow() - timedelta(minutes=cooldown_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=cooldown_minutes)
     stmt = select(Alert.id).where(
         Alert.rule_id == rule_id,
+        Alert.host_name == host_name,
         Alert.source_ip == source_ip,
         Alert.created_at >= cutoff,
     )
@@ -42,15 +47,19 @@ def evaluate_brute_force(session: Session, record: EventRecord) -> Alert | None:
 
     settings = get_settings()
     window_minutes = settings.detection_brute_force_window_minutes
-    window_start = datetime.utcnow() - timedelta(minutes=window_minutes)
+    # Anchor the window to event time. Delayed/reclaimed Redis messages must not be
+    # correlated with unrelated events that happened after them.
+    window_start = record.timestamp - timedelta(minutes=window_minutes)
 
     stmt = (
         select(EventRecord.id, EventRecord.timestamp)
         .where(
             EventRecord.source_ip == record.source_ip,
+            EventRecord.host_name == record.host_name,
             EventRecord.outcome == "failure",
             EventRecord.category.contains(["authentication"]),
             EventRecord.timestamp >= window_start,
+            EventRecord.timestamp <= record.timestamp,
         )
         .order_by(EventRecord.timestamp.desc())
     )
@@ -59,7 +68,9 @@ def evaluate_brute_force(session: Session, record: EventRecord) -> Alert | None:
         return None
 
     cooldown = settings.detection_brute_force_cooldown_minutes
-    if _has_recent_open_alert(session, RULE_BRUTE_FORCE, record.source_ip, cooldown):
+    if _has_recent_open_alert(
+        session, RULE_BRUTE_FORCE, record.host_name, record.source_ip, cooldown
+    ):
         return None
 
     alert = Alert(

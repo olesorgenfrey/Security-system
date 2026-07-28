@@ -9,7 +9,7 @@ Ausbaustufen (Phase 6).
 from __future__ import annotations
 
 import statistics
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -43,7 +43,7 @@ def _zscore(current: int, baseline: list[int]) -> float:
 def _has_recent_open_alert_for_host(
     session: Session, rule_id: str, host_name: str, cooldown_minutes: int
 ) -> bool:
-    cutoff = datetime.utcnow() - timedelta(minutes=cooldown_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=cooldown_minutes)
     stmt = select(Alert.id).where(
         Alert.rule_id == rule_id,
         Alert.host_name == host_name,
@@ -60,7 +60,9 @@ def evaluate_process_burst(session: Session, record: EventRecord) -> Alert | Non
 
     settings = get_settings()
     window = timedelta(seconds=settings.anomaly_window_seconds)
-    now = datetime.utcnow()
+    # Use event time so reclaimed/delayed stream messages are evaluated against
+    # the correct historical windows rather than the consumer's wall clock.
+    now = record.timestamp
 
     current_count = _count_process_creations(session, record.host_name, now - window, now)
     if current_count < settings.anomaly_min_count:

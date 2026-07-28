@@ -8,11 +8,16 @@ werden können.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress
+from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, field_validator
+
+
+def utc_now() -> datetime:
+    """Gibt einen timezone-aware UTC-Zeitstempel zurück."""
+    return datetime.now(UTC)
 
 
 class EventKind(StrEnum):
@@ -114,7 +119,7 @@ class Event(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    timestamp: datetime = Field(alias="@timestamp", default_factory=datetime.utcnow)
+    timestamp: datetime = Field(alias="@timestamp", default_factory=utc_now)
     event: EventMeta
     message: str | None = None
 
@@ -127,3 +132,11 @@ class Event(BaseModel):
 
     tags: list[str] = Field(default_factory=list)
     labels: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("timestamp")
+    @classmethod
+    def normalize_timestamp_to_utc(cls, value: datetime) -> datetime:
+        """Interpretiert Legacy-Zeitstempel ohne Zone als UTC und normalisiert alle anderen."""
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

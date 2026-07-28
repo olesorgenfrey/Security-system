@@ -13,12 +13,15 @@ später möglich, ohne den Aufrufer (core/detection/rules.py) zu ändern.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import yaml
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from core.config import get_settings
 from core.storage.models import Alert, AlertStatus, EventRecord
 
 RULES_DIR = Path(__file__).resolve().parents[2] / "rules"
@@ -40,7 +43,7 @@ class KeywordRule:
 
 def _load_rule(path: Path) -> KeywordRule:
     data: dict[str, Any] = yaml.safe_load(path.read_text())
-    return KeywordRule(
+    rule = KeywordRule(
         id=data["id"],
         title=data["title"],
         description=data.get("description", "").strip(),
@@ -48,6 +51,16 @@ def _load_rule(path: Path) -> KeywordRule:
         severity=int(data.get("severity", 50)),
         match_any=[list(group) for group in data.get("match_any", [])],
     )
+    if not rule.id.strip():
+        raise ValueError(f"Regel {path} hat keine ID")
+    if not 0 <= rule.severity <= 100:
+        raise ValueError(f"Regel {path} hat eine Severity ausserhalb 0..100")
+    if not rule.match_any or any(
+        not group or any(not isinstance(keyword, str) or not keyword.strip() for keyword in group)
+        for group in rule.match_any
+    ):
+        raise ValueError(f"Regel {path} enthaelt eine leere match_any-Gruppe")
+    return rule
 
 
 def load_rules(rules_dir: Path = RULES_DIR) -> list[KeywordRule]:
@@ -65,6 +78,17 @@ def _searchable_text(record: EventRecord) -> str:
     return " ".join(parts)
 
 
+def _has_recent_alert(session: Session, rule_id: str, host_name: str, minutes: int) -> bool:
+    """Suppress repeated matches for the same rule and host during a short cooldown."""
+    cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
+    stmt = select(Alert.id).where(
+        Alert.rule_id == rule_id,
+        Alert.host_name == host_name,
+        Alert.created_at >= cutoff,
+    )
+    return session.execute(stmt).first() is not None
+
+
 def evaluate_keyword_rules(
     session: Session, record: EventRecord, rules: list[KeywordRule] | None = None
 ) -> list[Alert]:
@@ -75,6 +99,13 @@ def evaluate_keyword_rules(
 
     for rule in active_rules:
         if not rule.matches(text):
+            continue
+        if _has_recent_alert(
+            session,
+            rule.id,
+            record.host_name,
+            get_settings().detection_keyword_cooldown_minutes,
+        ):
             continue
         alert = Alert(
             rule_id=rule.id,

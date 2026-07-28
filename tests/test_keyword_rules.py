@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import pytest
+
 from core.detection.keyword_rules import KeywordRule, load_rules
 
 
@@ -27,3 +31,19 @@ def test_keyword_rule_no_match() -> None:
         id="test", title="Test", description="", mitre=None, severity=50, match_any=[["nc", "-e"]]
     )
     assert not rule.matches("ls -la /home")
+
+
+def test_rule_loader_rejects_empty_match_group(tmp_path: Path) -> None:
+    (tmp_path / "invalid.yml").write_text(
+        "id: invalid\ntitle: Invalid\nseverity: 50\nmatch_any:\n  - []\n"
+    )
+    with pytest.raises(ValueError, match="leere match_any"):
+        load_rules(tmp_path)
+
+
+def test_rule_loader_rejects_out_of_range_severity(tmp_path: Path) -> None:
+    (tmp_path / "invalid.yml").write_text(
+        "id: invalid\ntitle: Invalid\nseverity: 101\nmatch_any:\n  - [foo]\n"
+    )
+    with pytest.raises(ValueError, match="Severity"):
+        load_rules(tmp_path)

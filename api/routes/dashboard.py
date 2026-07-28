@@ -1,18 +1,19 @@
-"""Dashboard (Phase 1): Live-Event-Feed + einfache Suche/Filter (HTMX + Jinja)."""
+"""Dashboard (Phase 1): Live-Event-Feed + validierte Suche/Filter."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from api.routes.alerts import build_alerts_query
 from api.routes.events import build_events_query
+from core.schemas.event import EventCategory
 from core.storage.database import get_session
 
 router = APIRouter(tags=["dashboard"])
@@ -28,21 +29,27 @@ class DashboardFilters:
     search: str
 
 
-def _filters(request: Request) -> DashboardFilters:
-    q = request.query_params
+def dashboard_filters(
+    host: Annotated[str, Query(max_length=255)] = "",
+    category: EventCategory | Literal[""] = "",
+    min_severity: Annotated[int, Query(ge=0, le=100)] = 0,
+    search: Annotated[str, Query(max_length=500)] = "",
+) -> DashboardFilters:
+    """Validate dashboard filters before they are used to construct a query."""
     return DashboardFilters(
-        host=q.get("host") or "",
-        category=q.get("category") or "",
-        min_severity=int(q.get("min_severity") or 0),
-        search=q.get("search") or "",
+        host=host,
+        category=category.value if isinstance(category, EventCategory) else category,
+        min_severity=min_severity,
+        search=search,
     )
 
 
 @router.get("/")
 def dashboard_index(
-    request: Request, session: Annotated[Session, Depends(get_session)]
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    filters: Annotated[DashboardFilters, Depends(dashboard_filters)],
 ) -> HTMLResponse:
-    filters = _filters(request)
     stmt = build_events_query(
         filters.host or None,
         filters.category or None,
@@ -51,8 +58,20 @@ def dashboard_index(
     ).limit(100)
     events = session.execute(stmt).scalars().all()
     alerts = session.execute(build_alerts_query("open").limit(20)).scalars().all()
+    host_count = len({event.host_name for event in events})
+    critical_alert_count = sum(alert.severity >= 80 for alert in alerts)
     return templates.TemplateResponse(
-        request, "index.html", {"events": events, "alerts": alerts, "filters": filters}
+        request,
+        "index.html",
+        {
+            "events": events,
+            "alerts": alerts,
+            "filters": filters,
+            "categories": [category.value for category in EventCategory],
+            "alert_count": len(alerts),
+            "critical_alert_count": critical_alert_count,
+            "host_count": host_count,
+        },
     )
 
 
@@ -66,9 +85,10 @@ def alerts_partial(
 
 @router.get("/partials/events")
 def events_partial(
-    request: Request, session: Annotated[Session, Depends(get_session)]
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    filters: Annotated[DashboardFilters, Depends(dashboard_filters)],
 ) -> HTMLResponse:
-    filters = _filters(request)
     stmt = build_events_query(
         filters.host or None,
         filters.category or None,
@@ -76,6 +96,4 @@ def events_partial(
         filters.search or None,
     ).limit(100)
     events = session.execute(stmt).scalars().all()
-    return templates.TemplateResponse(
-        request, "_events_table.html", {"events": events}
-    )
+    return templates.TemplateResponse(request, "_events_table.html", {"events": events})

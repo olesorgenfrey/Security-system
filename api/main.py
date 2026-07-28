@@ -8,9 +8,11 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import alerts, dashboard, events
+from api.security import SecurityMiddleware
 from core.config import get_settings
 
 app = FastAPI(title="Aegis", description="Adaptive Defensive Security Platform")
+app.add_middleware(SecurityMiddleware)
 
 app.mount(
     "/static",
@@ -25,7 +27,7 @@ app.include_router(dashboard.router)
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "service": "aegis"}
 
 
 @app.get("/api/info")

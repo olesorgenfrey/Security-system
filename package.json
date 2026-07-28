@@ -1,0 +1,55 @@
+{
+  "name": "aeris-security-cli",
+  "version": "0.1.0",
+  "description": "Global CLI for the Aegis defensive security platform",
+  "type": "module",
+  "bin": {
+    "aeris": "bin/aeris.mjs"
+  },
+  "files": [
+    ".dockerignore",
+    ".env.example",
+    "Dockerfile",
+    "README.md",
+    "aeris/",
+    "alembic/",
+    "alembic.ini",
+    "api/",
+    "bin/",
+    "collectors/",
+    "config/",
+    "core/",
+    "dashboard/static/",
+    "dashboard/templates/",
+    "deploy/",
+    "pyproject.toml",
+    "rules/",
+    "uv.lock"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node --check bin/aeris.mjs",
+    "test": "node --test npm-tests/*.test.mjs",
+    "prepublishOnly": "npm run check && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olesorgenfrey/Security-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/olesorgenfrey/Security-system/issues"
+  },
+  "homepage": "https://github.com/olesorgenfrey/Security-system#readme",
+  "keywords": [
+    "aegis",
+    "aeris",
+    "security",
+    "docker",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,28 +1,34 @@
-<table class="alerts">
-  <thead>
-    <tr>
-      <th>Zeit</th>
-      <th>Titel</th>
-      <th>Regel</th>
-      <th>MITRE</th>
-      <th>Severity</th>
-      <th>Host</th>
-      <th>Quell-IP</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for a in alerts %}
-    <tr class="sev-{{ 'high' if a.severity >= 60 else ('mid' if a.severity >= 30 else 'low') }}">
-      <td>{{ a.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-      <td>{{ a.title }}</td>
-      <td>{{ a.rule_id }}</td>
-      <td>{{ a.mitre_technique or "–" }}</td>
-      <td>{{ a.severity }}</td>
-      <td>{{ a.host_name or "–" }}</td>
-      <td>{{ a.source_ip or "–" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="empty">Keine offenen Alerts.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="table-scroll">
+  <table class="data-table alerts-table">
+    <caption class="visually-hidden">Neueste offene Alerts</caption>
+    <thead>
+      <tr>
+        <th>Zeit</th>
+        <th>Schweregrad</th>
+        <th>Alert</th>
+        <th>Regel</th>
+        <th>MITRE</th>
+        <th>Host</th>
+        <th>Quell-IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in alerts %}
+      {% set severity_class = "critical" if a.severity >= 80 else ("high" if a.severity >= 60 else ("medium" if a.severity >= 30 else "info")) %}
+      {% set severity_label = "Kritisch" if a.severity >= 80 else ("Hoch" if a.severity >= 60 else ("Mittel" if a.severity >= 30 else "Info")) %}
+      {% set severity_glyph = "▲" if a.severity >= 80 else ("◆" if a.severity >= 60 else ("●" if a.severity >= 30 else "–")) %}
+      <tr class="severity-{{ severity_class }} data-row" data-severity="{{ a.severity }}">
+        <td class="cell-time"><time datetime="{{ a.created_at.isoformat() }}">{{ a.created_at.strftime("%H:%M:%S") }}</time></td>
+        <td class="cell-severity"><span aria-hidden="true">{{ severity_glyph }}</span> {{ severity_label }} <small>{{ a.severity }}</small></td>
+        <td><strong>{{ a.title }}</strong>{% if a.description %}<span class="cell-sub">{{ a.description }}</span>{% endif %}</td>
+        <td class="cell-mono">{{ a.rule_id }}</td>
+        <td class="cell-mono">{{ a.mitre_technique or "–" }}</td>
+        <td>{{ a.host_name or "–" }}</td>
+        <td class="cell-mono">{{ a.source_ip or "–" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">Keine offenen Alerts.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

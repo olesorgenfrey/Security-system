@@ -14,32 +14,36 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 - [x] Projektstruktur & Python-Setup (uv, Linting/ruff, Typing/mypy)
 - [x] Gemeinsames **Event-Schema** (ECS-angelehnt) als Datenmodell
 - [x] PostgreSQL + Migrationen (SQLAlchemy/Alembic)
-- [x] `docker-compose` für lokale Dev-Umgebung (DB, Redis, App)
-- [x] GitHub-Actions-CI: Lint, Tests, Dependency-Scan
+- [x] Docker Compose mit DB, authentifiziertem/persistentem Redis, API und Workern
+- [x] GitHub-Actions-CI: Lint, Typprüfung, Service-Tests, Migration-/Compose-Prüfung, Image-Build, Dependency-Scan
 - [x] Konfigurations- & Scope-Konzept (welche Assets sind „in scope")
+- [x] Deployment-Baseline: Pflicht-Secrets, Loopback-Ports, non-root/read-only Container und geordnete Migration
 
-**Ergebnis:** `docker compose up` startet ein leeres, aber vollständiges Skelett.
+**Ergebnis:** Nach Befüllen von `.env` startet der dokumentierte
+`docker compose`-Befehl ein gehärtetes Grundsystem.
 
 ---
 
 ## Phase 1 — Monitoring-MVP  ✅
 **Ziel:** Events sammeln, speichern, sichtbar machen.
 
-- [x] Host-Agent: Log-Tailing + Prozess-/Netzwerk-Snapshot
-- [x] Event Bus (Redis Streams) + Normalizer
+- [x] Host-Agent: konfigurierbares echtes Host-Log-Tailing + Prozess-/Netzwerk-Snapshot
+- [x] Event Bus (Redis Streams) + Normalizer, Pending-Recovery und Dead-Letter-Stream
 - [x] Events landen strukturiert in Postgres
-- [x] Minimal-Dashboard: Live-Event-Feed + einfache Suche/Filter
-- [x] Erste E-Mail/Webhook-Benachrichtigung
+- [x] Globaler Event-Retention-Worker
+- [x] Minimal-Dashboard: gepollter Event-/Alert-Feed + Suche/Filter, geschützt per HTTP Basic
+- [x] Persistente E-Mail-/Webhook-Outbox mit begrenztem Retry
 
-**Ergebnis:** Du siehst live, was auf einem Host passiert. Ein schlankes SIEM.
+**Ergebnis:** Du siehst per kurzem Polling-Intervall, was auf einem Host
+passiert. Ein schlankes SIEM.
 
 ---
 
 ## Phase 2 — Detection Engine  ✅
 **Ziel:** Aus Events werden aussagekräftige Alerts.
 
-- [x] Erste Regel: Brute-Force-Erkennung (Schwellwert/Zeitfenster, IP-gruppiert)
-- [x] Kuratierte Keyword-Regeln (neues Admin-Konto, Reverse-Shell-Muster) — echtes Sigma (pySigma) als spaeterer Ausbau
+- [x] Erste Regel: Brute-Force-Erkennung (Schwellwert/Zeitfenster, nach Host und Quell-IP gruppiert)
+- [x] Kuratierte, je Host deduplizierte Keyword-Regeln (neues Admin-Konto, Reverse-Shell-Muster) — echtes Sigma (pySigma) als späterer Ausbau
 - [x] Anomalie-Detektor: Z-Score auf Prozess-Erstellungsrate pro Host
 - [x] Severity-Scoring + MITRE-ATT&CK-Mapping (erste Regel)
 - [x] Alert-Ansicht im Dashboard
@@ -95,7 +99,7 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 - [ ] ML-basierte Anomalie-Erkennung
 - [ ] Rollen & Mandantenfähigkeit (für Firmennetz)
 - [ ] Reporting/Compliance-Exports
-- [ ] Härtung & Pen-Test der Plattform selbst
+- [ ] Vertiefte Härtung & Pen-Test der Plattform selbst (erste Deployment-Baseline ist umgesetzt)
 
 ---
 

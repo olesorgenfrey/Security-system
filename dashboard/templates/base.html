@@ -2,18 +2,61 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>Aegis — Dashboard</title>
+  <title>Aegis — Live-Feed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/dashboard.js" defer></script>
 </head>
 <body>
-  <header>
-    <h1>🛡️ Aegis</h1>
-    <span class="subtitle">Adaptive Defensive Security Platform</span>
-  </header>
-  <main>
-    {% block content %}{% endblock %}
-  </main>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <strong>AEGIS</strong>
+        <span class="brand-edition">MVP</span>
+      </div>
+
+      <nav class="primary-nav" aria-label="Hauptnavigation">
+        <a class="nav-item active" href="#events-panel" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">≡</span>
+          <span>Live-Feed</span>
+        </a>
+        <a class="nav-item" href="#alerts-panel">
+          <span class="nav-icon" aria-hidden="true">▲</span>
+          <span>Alerts</span>
+          <span class="nav-badge" id="nav-alert-count" {% if not alert_count %}hidden{% endif %}>{{ alert_count }}</span>
+        </a>
+        {% for icon, label in [("◆", "Incidents"), ("▸", "Response"), ("↦", "Playbooks"), ("▤", "Assets"), ("◷", "Audit-Log")] %}
+        <span class="nav-item planned" aria-disabled="true">
+          <span class="nav-icon" aria-hidden="true">{{ icon }}</span>
+          <span>{{ label }}</span>
+          <small>geplant</small>
+        </span>
+        {% endfor %}
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="live-state" id="polling-state">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>AUTO-REFRESH · 3 S</span>
+        </div>
+        <span class="status-note">Geschützter Zugriff</span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <h1>Live-Feed</h1>
+        <div class="topbar-status" aria-label="Feed-Status">
+          <span><strong id="top-event-count">{{ events | length }}</strong> geladen</span>
+          <span><strong id="top-alert-count">{{ alert_count }}</strong> Alerts geladen</span>
+          <time id="current-time" aria-label="Aktuelle Uhrzeit">--:--:--</time>
+        </div>
+      </header>
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
 </body>
 </html>

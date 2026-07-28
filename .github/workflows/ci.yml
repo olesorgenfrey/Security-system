@@ -8,6 +8,36 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://aegis:aegis-ci-password@127.0.0.1:5432/aegis_ci
+      REDIS_URL: redis://127.0.0.1:6379/0
+      API_USERNAME: aegis
+      API_PASSWORD: aegis-ci-api-password
+      RUN_SERVICE_TESTS: "1"
+      NOTIFY_WEBHOOK_URL: http://127.0.0.1:9/integration-test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: aegis-ci-password
+          POSTGRES_DB: aegis_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegis -d aegis_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -22,11 +52,67 @@ jobs:
       - name: Ruff lint
         run: uv run ruff check .
 
-      - name: Mypy
-        run: uv run mypy core api collectors
+      - name: Ruff format
+        run: uv run ruff format --check .
 
-      - name: Pytest
+      - name: Mypy
+        run: uv run mypy .
+
+      - name: Apply and verify migrations
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+      - name: PostgreSQL and Redis smoke test
+        run: |
+          uv run python - <<'PY'
+          from sqlalchemy import text
+
+          from core.ingestion.bus import get_redis
+          from core.storage.database import engine
+
+          with engine.connect() as connection:
+              assert connection.execute(text("SELECT 1")).scalar_one() == 1
+          assert get_redis().ping()
+          PY
+
+      - name: Pytest (service-backed)
         run: uv run pytest -q
+
+  npm-cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check Node launcher syntax
+        run: npm run check
+
+      - name: Test tarball and isolated global installation
+        run: npm test
+
+  container-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Compose configuration
+        env:
+          POSTGRES_PASSWORD: compose-ci-postgres-password
+          REDIS_PASSWORD: compose-ci-redis-password
+          AEGIS_API_PASSWORD: compose-ci-api-password
+        run: docker compose -f deploy/docker-compose.yml config --quiet
+
+      - name: Build hardened runtime image
+        run: docker build --tag aegis:ci .
 
   dependency-scan:
     runs-on: ubuntu-latest

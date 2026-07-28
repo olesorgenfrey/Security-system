@@ -17,8 +17,8 @@ from pathlib import Path
 import psutil
 import redis
 
-from core.config import get_settings
-from core.ingestion.bus import get_redis, publish_event
+from core.config import get_host_agent_settings
+from core.ingestion.bus import publish_event
 from core.schemas.event import (
     Event,
     EventCategory,
@@ -41,7 +41,7 @@ _USER_RE = re.compile(r"for (?:invalid user )?(\S+) from")
 
 
 def _hostname() -> str:
-    return get_settings().host_agent_hostname
+    return get_host_agent_settings().host_agent_hostname
 
 
 def _emit(client: redis.Redis, event: Event) -> None:
@@ -174,7 +174,7 @@ def snapshot_network(client: redis.Redis) -> None:
 
 
 def run_snapshots(client: redis.Redis) -> None:
-    interval = get_settings().host_agent_snapshot_interval_seconds
+    interval = get_host_agent_settings().host_agent_snapshot_interval_seconds
     known_pids: set[int] = set(psutil.pids())
     logger.info("Prozess-/Netz-Snapshot alle %ss", interval)
     while True:
@@ -187,8 +187,9 @@ def run_snapshots(client: redis.Redis) -> None:
 
 
 def run() -> None:
-    client = get_redis()
-    log_paths = [p.strip() for p in get_settings().host_agent_log_paths.split(",") if p.strip()]
+    settings = get_host_agent_settings()
+    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    log_paths = [p.strip() for p in settings.host_agent_log_paths.split(",") if p.strip()]
 
     threads = [
         threading.Thread(target=tail_log, args=(path, client), daemon=True) for path in log_paths
