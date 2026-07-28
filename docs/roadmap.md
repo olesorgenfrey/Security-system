@@ -1,107 +1,149 @@
 # Roadmap — Aegis
 
-Inkrementeller Aufbau. Jede Phase liefert etwas **Lauffähiges & Nützliches**.
-Wir bauen von „beobachten" zu „erkennen" zu „reagieren" — die riskante
-Automatik (SOAR) kommt bewusst zuletzt.
+Inkrementeller Aufbau auf dem echten Kali-VPS. Jede Phase liefert etwas
+**Lauffähiges & Nützliches** auf dem echten Server — kein rein theoretisches
+Grundgerüst. Reihenfolge: **beobachten → erkennen → reagieren.** Die
+riskante Automatik (Response) kommt bewusst zuletzt, und der zweite
+(geschäftlich genutzte) Server wird erst angebunden, wenn Aegis sich auf
+Kali bewährt hat.
 
 Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 
 ---
 
-## Phase 0 — Grundgerüst  🔲
-**Ziel:** Reproduzierbares Projekt-Setup, an dem alle weiteren Teile andocken.
+## Phase 0 — Grundgerüst & Kali-Härtung  🔲
+**Ziel:** Sauberer, reproduzierbarer Ausgangspunkt auf dem echten Server.
 
-- [ ] Projektstruktur & Python-Setup (Poetry/uv, Linting, Typing)
-- [ ] Gemeinsames **Event-Schema** (ECS-angelehnt) als Datenmodell
-- [ ] PostgreSQL + Migrationen (SQLAlchemy/Alembic)
-- [ ] `docker-compose` für lokale Dev-Umgebung (DB, Redis, App)
-- [ ] GitHub-Actions-CI: Lint, Tests, Dependency-Scan
-- [ ] Konfigurations- & Scope-Konzept (welche Assets sind „in scope")
+- [ ] Kali-VPS-Grundhärtung: root-Login aus, Passwort-Login aus (nur Key),
+      unnötige Dienste identifizieren
+- [ ] Eigener SSH-Key/eigene IP als **Allowlist-Eintrag** dokumentieren —
+      Grundlage, die später nie automatisch geblockt werden darf
+- [ ] Projektstruktur & Python-Setup (Dependency-Management, Linting)
+- [ ] Gemeinsames Event-Schema (ECS-angelehnt, inkl. `event.direction`)
+- [ ] PostgreSQL + Migrationen
+- [ ] `docker-compose` für die Aegis-Komponenten auf dem Kali-Server
+- [ ] GitHub-Actions-CI: Lint, Tests
 
-**Ergebnis:** `docker compose up` startet ein leeres, aber vollständiges Skelett.
+**Ergebnis:** Der Kali-Server ist etwas gehärtet, `docker compose up` startet
+ein leeres, aber vollständiges Aegis-Skelett darauf.
 
 ---
 
-## Phase 1 — Monitoring-MVP  🔲
-**Ziel:** Events sammeln, speichern, sichtbar machen.
+## Phase 1 — Monitoring-MVP: SSH & eingehende Verbindungen  🔲
+**Ziel:** Echte Sichtbarkeit über das, was von außen auf den Server zukommt.
 
-- [ ] Host-Agent: Log-Tailing + Prozess-/Netzwerk-Snapshot
+- [ ] Host-Agent: `auth.log`/journald-Tailing (SSH-Logins, `sudo`-Nutzung)
+- [ ] Eingehende Netzwerkverbindungen erfassen (ausgehende/lokale explizit
+      ignorieren, um Pentesting-Nutzung nicht als Bedrohung zu werten)
 - [ ] Event Bus (Redis Streams) + Normalizer
-- [ ] Events landen strukturiert in Postgres
-- [ ] Minimal-Dashboard: Live-Event-Feed + einfache Suche/Filter
-- [ ] Erste E-Mail/Webhook-Benachrichtigung
+- [ ] Events strukturiert in Postgres
+- [x] **Dashboard-Design gemeinsam** — Referenz-Design steht bereits
+      ([`dashboard/design/Aegis_Dashboard.html`](../dashboard/design/Aegis_Dashboard.html),
+      siehe `architecture.md` Abschnitt 3.7), vorgezogen vor den Rest von
+      Phase 1
+- [ ] Minimal-Dashboard: Live-Feed eingehender Auth-/Verbindungsereignisse
+      an das bestehende Design anbinden (echte Daten statt Mock-Daten)
+- [ ] Erste E-Mail/Webhook-Benachrichtigung bei auffälligen Login-Versuchen
 
-**Ergebnis:** Du siehst live, was auf einem Host passiert. Ein schlankes SIEM.
+**Ergebnis:** Du siehst live, wer/was versucht, auf deinen Kali-Server
+zuzugreifen.
 
 ---
 
 ## Phase 2 — Detection Engine  🔲
-**Ziel:** Aus Events werden aussagekräftige Alerts.
+**Ziel:** Aus rohen Events werden aussagekräftige Alerts — dein
+Brute-Force-Beispiel wird real erkannt.
 
-- [ ] Sigma-Regel-Engine (kuratierte Startregeln, z. B. Brute-Force, neue Admin-Konten)
-- [ ] Einfache Anomalie-Detektoren (Schwellwert/Z-Score)
-- [ ] Severity-Scoring + MITRE-ATT&CK-Mapping
-- [ ] Alert-Ansicht im Dashboard
+- [ ] Regel: „N fehlgeschlagene SSH-Logins von IP X in Zeitfenster Y" →
+      Alert
+- [ ] Verhaltensregeln für Post-Compromise-Verdacht: neuer Prozess mit
+      ungewöhnlichem Elternprozess nach fremdem Login, neue Nutzerkonten,
+      Rechte-Eskalation
+- [ ] Correlation-Engine: zusammenhängende Alerts → ein Incident mit
+      Verdachtsspur (welcher Login → welcher Prozess → welche Aktion)
+- [ ] Severity-Scoring
+- [ ] Alert-/Incident-Ansicht im Dashboard
+- [ ] Erweiterung auf **Sigma-Regeln** für mehr Deckungsbreite (optional,
+      nach den eigenen Kernregeln)
 
-**Ergebnis:** Das System meldet verdächtige Muster, nicht nur Rohdaten.
-
----
-
-## Phase 3 — Vulnerability Scanning  🔲
-**Ziel:** Proaktiv Schwachstellen finden.
-
-- [ ] Scanner-Orchestrator (nmap → Asset-Discovery)
-- [ ] nuclei (Web/Service-CVEs) + Trivy (Container/Deps) integrieren
-- [ ] Asset-Inventar + Finding-Verwaltung (CVSS-Priorisierung)
-- [ ] Geplante & Ad-hoc-Scans aus dem Dashboard
-- [ ] Verknüpfung: Findings ↔ Assets ↔ Alerts
-
-**Ergebnis:** Regelmäßige Zustandsprüfung deiner Umgebung.
+**Ergebnis:** Das System meldet „hier ist ein Brute-Force-Angriff" bzw.
+„hier deutet etwas auf einen erfolgreichen Einbruch hin" — mit Kontext.
 
 ---
 
-## Phase 4 — IDS / Netzwerk-Erkennung  🔲
-**Ziel:** Angriffe auf Netzwerkebene sehen.
-
-- [ ] Suricata als Sensor einbinden (EVE-JSON → Bus)
-- [ ] Optional Zeek für Protokoll-/Flow-Metadaten
-- [ ] Netzwerk-Alerts in Correlation-Engine integrieren
-- [ ] Angriffsketten über Host- + Netz-Events korrelieren (Incidents)
-
-**Ergebnis:** Host- und Netzwerksicht in einem korrelierten Incident-Bild.
-
----
-
-## Phase 5 — Adaptive Response (SOAR)  🔲
-**Ziel:** Automatische, abgesicherte Gegenmaßnahmen. **Zuerst nur Dry-Run.**
+## Phase 3 — Adaptive Response (zuerst nur Dry-Run)  🔲
+**Ziel:** Dein Kern-Szenario — Angriff erkennen, automatisch reagieren,
+kontrolliert.
 
 - [ ] Playbook-Format (YAML) + Ausführungs-Engine
-- [ ] Safety-Layer: Dry-Run-Default, Allow/Deny-Listen, Rate-Limit, Circuit-Breaker
-- [ ] Approval-Queue im Dashboard (Mensch bestätigt kritische Aktionen)
-- [ ] Erste Aktionen: IP blockieren, Prozess killen, Host isolieren — je mit **Rollback/TTL**
-- [ ] Vollständiges Audit-Log jeder Aktion
-- [ ] Schrittweise Freigabe: Beobachten → mit Freigabe → (für unkritische Fälle) vollautomatisch
+- [ ] **Allowlist-Layer zuerst umsetzen und testen** — eigener Key/eigene
+      IP dürfen nachweislich nie geblockt werden (eigener Testfall!)
+- [ ] Dry-Run-Default für jede neue Aktion
+- [ ] Aktion 1: verdächtige IP nach Brute-Force temporär blocken (nftables),
+      mit TTL/Rollback
+- [ ] Aktion 2: bei Post-Compromise-Verdacht Session/Prozess beenden,
+      Konto sperren
+- [ ] Approval-Queue im Dashboard für alles außer „IP temporär blocken"
+- [ ] Vollständiges Audit-Log jeder ausgelösten Aktion
+- [ ] Schrittweise Freigabe: Beobachten → mit Freigabe → (für den
+      Brute-Force-Fall) vollautomatisch
 
-**Ergebnis:** Das System kann selbst eingreifen — kontrolliert und reversibel.
+**Ergebnis:** Das System wehrt Brute-Force-Angriffe selbst ab und reagiert
+auf Anzeichen eines erfolgreichen Einbruchs — mit Sicherheitsnetz.
 
 ---
 
-## Phase 6 — Reife & Skalierung  🔲
-**Ziel:** Produktionstauglich für größere/mehrere Umgebungen.
+## Phase 4 — Vulnerability Scanning  🔲
+**Ziel:** Proaktiv Schwachstellen auf dem eigenen Server finden.
 
-- [ ] Multi-Host / verteilte Sensoren + zentraler Core
-- [ ] OpenSearch für große Event-Mengen
-- [ ] ML-basierte Anomalie-Erkennung
-- [ ] Rollen & Mandantenfähigkeit (für Firmennetz)
-- [ ] Reporting/Compliance-Exports
-- [ ] Härtung & Pen-Test der Plattform selbst
+- [ ] nmap-Orchestrierung (Asset-/Port-Discovery des eigenen Servers)
+- [ ] nuclei für bekannte CVEs auf exponierten Diensten
+- [ ] Findings im Dashboard, priorisiert nach CVSS + Erreichbarkeit
+- [ ] Geplante & Ad-hoc-Scans
+
+**Ergebnis:** Regelmäßige Zustandsprüfung — Lücken werden gefunden, bevor
+sie ausgenutzt werden.
+
+---
+
+## Phase 5 — Netzwerk-IDS (Suricata)  🔲
+**Ziel:** Tiefere Netzwerksicht zusätzlich zu Host-Events.
+
+- [ ] Suricata als Sensor einbinden (EVE-JSON → Bus)
+- [ ] Netzwerk-Alerts in Correlation-Engine integrieren
+- [ ] Angriffsketten über Host- + Netz-Events korrelieren
+
+**Ergebnis:** Kombinierte Host- und Netzwerksicht in einem Incident-Bild.
+
+---
+
+## Phase 6 — Rollout auf den zweiten (wichtigen) Server  🔲
+**Ziel:** Aegis auf den geschäftlich genutzten Server bringen — vorsichtig.
+
+- [ ] Konservativerer Response-Modus als Standard (mehr Freigaben, weniger
+      Automatik, bis Vertrauen besteht)
+- [ ] Anpassung an dortige Dienste (Web-Apps statt Pentesting-Tools)
+- [ ] Schrittweise Angleichung an das Automatisierungsniveau von Kali,
+      nur nach expliziter Freigabe
+
+---
+
+## Stretch-Goal (nach Phase 6, offen) — „Zero-Day-Selbstheilung"  🔲
+
+Nur falls der gesamte Kern zuverlässig läuft: vorsichtige Experimente
+Richtung automatisierter Ursachenforschung und Fix-Vorschlägen für
+unbekannte Lücken (Mensch bestätigt weiterhin jeden Fix). Kein
+MVP-Bestandteil, siehe `architecture.md` Abschnitt 8.
 
 ---
 
 ## Priorisierungs-Logik
 
-1. **Sichtbarkeit zuerst** (Phasen 0–2) — ohne verlässliche Daten ist alles andere wertlos.
-2. **Proaktiv & Netz** (Phasen 3–4) — breiteres Erkennungsspektrum.
-3. **Automatik zuletzt** (Phase 5) — erst wenn Erkennung vertrauenswürdig ist,
-   darf sie Aktionen auslösen.
-4. **Skalierung nach Bedarf** (Phase 6) — nur bauen, was gebraucht wird.
+1. **Sichtbarkeit zuerst** (Phasen 0–2) — ohne verlässliche Daten zum
+   eingehenden Traffic ist alles andere wertlos.
+2. **Automatik erst wenn Erkennung sitzt** (Phase 3) — mit hartem
+   Allowlist-Schutz von Anfang an.
+3. **Breiter werden** (Phasen 4–5) — Scanning und Netzwerksicht ergänzen
+   den bewährten Kern.
+4. **Zweiter Server erst zum Schluss** (Phase 6) — höhere Vorsicht, weniger
+   Automatik, bis Vertrauen besteht.

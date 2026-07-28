@@ -9,10 +9,17 @@ mit vordefinierten, abgesicherten Gegenmaßnahmen reagiert.
 
 ## Vision
 
-Ein einziges System, das über verschiedene Umgebungen hinweg (Heimnetz,
-Server/Cloud, Web-Anwendungen, Firmennetz) Sicherheitsereignisse **sammelt**,
-**erkennt**, **korreliert**, **visualisiert** und bei Bedarf **automatisch
-reagiert** — mit Mensch-im-Kontrollkreis für kritische Aktionen.
+Ein System, das die **eingehende Angriffsfläche eines echten Servers**
+überwacht — Sicherheitsereignisse **sammelt**, **erkennt**, **korreliert**,
+**visualisiert** und bei Bedarf **automatisch reagiert** — mit
+Mensch-im-Kontrollkreis für kritische Aktionen.
+
+**Reales Setup:** Entwicklung und erstes Schutzziel ist ein eigener
+Kali-VPS (Doppelnutzung als Pentesting-Werkzeugkasten — Aegis überwacht
+bewusst nur eingehenden Traffic, nicht die eigene Tool-Nutzung). Ein
+zweiter, geschäftlich genutzter Server kommt erst später dazu, mit
+konservativerem Automatisierungsgrad. Details siehe
+[Architektur, Abschnitt 0](docs/architecture.md#0-reales-setup-ausgangslage).
 
 ## Kernbausteine
 
@@ -40,7 +47,14 @@ reagiert** — mit Mensch-im-Kontrollkreis für kritische Aktionen.
 Alle Gegenmaßnahmen sind defensiv (blockieren, isolieren, drosseln) — niemals
 offensiv gegen Dritte. Details siehe Architektur-Dokument.
 
+## Zusammenarbeit
+
+Ein Großteil des Codes wird von Claude geschrieben; Entscheidungen an
+Weichenstellungen werden kurz erklärt und gemeinsam freigegeben. Das
+Dashboard-Design wird **gemeinsam** gestaltet, sobald diese Phase in der
+Roadmap ansteht.
+
 ## Status
 
-🌱 **Planungsphase.** Noch kein produktiver Code. Nächster Schritt: Freigabe
-der Architektur, dann Phase 0 (Projekt-Grundgerüst).
+🌱 **Planungsphase, gemeinsam abgestimmt.** Noch kein produktiver Code.
+Nächster Schritt: Phase 0 (Projekt-Grundgerüst & Kali-Härtung).
