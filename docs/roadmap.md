@@ -21,9 +21,9 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 - [x] GitHub-Actions-CI: Lint, Tests
 - [x] Konfigurations- & Scope-Konzept (`config/scope.yaml`, fail-closed
       außerhalb des erlaubten Bereichs)
-- [ ] Kali-VPS-Grundhärtung förmlich dokumentiert (root-Login/Passwort-Login
-      waren bereits aus; **noch offen:** Docker/UFW-Expositionslücke bei
-      einem Testcontainer, siehe unten)
+- [x] Kali-VPS-Grundhärtung (root-Login/Passwort-Login waren bereits aus;
+      Docker/UFW-Expositionslücke beim Solr-Testcontainer behoben, siehe
+      unten)
 - [ ] Eigener SSH-Key/eigene IP als **Allowlist-Eintrag** dokumentiert —
       Grundlage, die die Response-Engine (Phase 5) später nie automatisch
       blocken darf
@@ -31,12 +31,14 @@ Legende: 🔲 offen · 🚧 in Arbeit · ✅ fertig
 **Ergebnis:** `docker compose up` startet das vollständige Aegis-Skelett auf
 dem echten Server.
 
-**Bekannte offene Baustelle (außerhalb des Phasenplans):** Bei der
+**Erledigte Baustelle (außerhalb des Phasenplans):** Bei der
 Bestandsaufnahme des Servers wurde ein absichtlich verwundbarer
 Solr-Testcontainer gefunden, der wegen eines Docker/UFW-Zusammenspiels
-öffentlich statt nur lokal erreichbar war. Fix wurde vorgeschlagen (Port auf
-`127.0.0.1` binden + Zugriff per SSH-Tunnel), Ausführung/Bestätigung steht
-noch aus.
+öffentlich statt nur lokal erreichbar war (Ports 5005/8983 auf `0.0.0.0`).
+Fix angewendet: Ports in `docker-compose.yml` auf `127.0.0.1` gebunden,
+Zugriff bei Bedarf per SSH-Tunnel. ✅ Vom Nutzer bestätigt ausgeführt
+(technische Verifikation via `kali-server`-MCP-Verbindung steht noch aus,
+da diese aktuell nicht erreichbar ist).
 
 ---
 

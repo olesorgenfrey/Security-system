@@ -74,10 +74,10 @@ Admin-/Sudo-Konto, Reverse-Shell-Muster in Prozess-Kommandozeilen), Z-Score-
 Anomalie-Detektor auf der Prozess-Erstellungsrate pro Host, MITRE-ATT&CK-
 Mapping je Alert sowie eine eigene Alert-Ansicht im Dashboard.
 
-⚠️ **Noch offen (unabhängig vom Phasenplan):** Ein bei der Bestandsaufnahme
-gefundenes Docker/UFW-Expositionsproblem auf dem echten Kali-Server (ein
+✅ **Behoben (unabhängig vom Phasenplan):** Das bei der Bestandsaufnahme
+gefundene Docker/UFW-Expositionsproblem auf dem echten Kali-Server (ein
 verwundbarer Solr-Testcontainer war öffentlich statt nur lokal erreichbar)
-ist noch nicht bestätigt behoben.
+wurde behoben — Ports jetzt auf `127.0.0.1` gebunden, Zugriff per SSH-Tunnel.
 
-Nächster Schritt: Phase 3 (Vulnerability Scanning) — nmap/nuclei/Trivy-
-Orchestrierung, Asset-Inventar, Finding-Verwaltung.
+Nächster Schritt: Phase 3 (Adaptive Response) oder Phase 4 (Vulnerability
+Scanning) — offen, welche zuerst drankommt.
