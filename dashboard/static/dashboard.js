@@ -48,8 +48,12 @@ function updateMetrics() {
     if (row.dataset.host) hosts.add(row.dataset.host);
   }
   let criticalAlerts = 0;
+  const alertHosts = new Set();
+  const alertSources = new Set();
   for (const row of alertRows) {
     if (Number(row.dataset.severity) >= 80) criticalAlerts += 1;
+    if (row.dataset.host) alertHosts.add(row.dataset.host);
+    if (row.dataset.sourceIp) alertSources.add(row.dataset.sourceIp);
   }
 
   const eventCount = eventRows.length;
@@ -60,6 +64,9 @@ function updateMetrics() {
   setText("kpi-host-count", hosts.size);
   setText("kpi-alert-count", alertCount);
   setText("kpi-critical-count", criticalAlerts);
+  setText("kpi-alert-host-count", alertHosts.size);
+  setText("kpi-alert-source-count", alertSources.size);
+  setText("top-critical-alert-count", criticalAlerts);
   setText("alerts-panel-count", `Neueste ${alertCount} Einträge`);
 
   document.getElementById("kpi-critical-card")?.classList.toggle("critical", criticalAlerts > 0);
@@ -172,7 +179,10 @@ function setPollingPaused(paused) {
     pollingState.classList.toggle("paused", paused);
     const stateLabel = pollingState.querySelector("span:last-child");
     if (stateLabel) {
-      stateLabel.textContent = paused ? "AUTO-REFRESH · PAUSIERT" : "AUTO-REFRESH · 3 S";
+      const refreshSeconds = pollingState.dataset.refreshSeconds ?? "3";
+      stateLabel.textContent = paused
+        ? "AUTO-REFRESH · PAUSIERT"
+        : `AUTO-REFRESH · ${refreshSeconds} S`;
     }
   }
   if (paused) {

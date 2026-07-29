@@ -64,6 +64,8 @@ def dashboard_index(
         request,
         "index.html",
         {
+            "active_view": "feed",
+            "page_title": "Live-Feed",
             "events": events,
             "alerts": alerts,
             "filters": filters,
@@ -71,6 +73,28 @@ def dashboard_index(
             "alert_count": len(alerts),
             "critical_alert_count": critical_alert_count,
             "host_count": host_count,
+        },
+    )
+
+
+@router.get("/alerts")
+def dashboard_alerts(
+    request: Request, session: Annotated[Session, Depends(get_session)]
+) -> HTMLResponse:
+    alerts = session.execute(build_alerts_query("open").limit(20)).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "alerts.html",
+        {
+            "active_view": "alerts",
+            "page_title": "Alerts",
+            "alerts": alerts,
+            "alert_count": len(alerts),
+            "critical_alert_count": sum(alert.severity >= 80 for alert in alerts),
+            "alert_host_count": len({alert.host_name for alert in alerts if alert.host_name}),
+            "alert_source_count": len(
+                {str(alert.source_ip) for alert in alerts if alert.source_ip}
+            ),
         },
     )
 

@@ -17,7 +17,7 @@
       {% set severity_class = "critical" if a.severity >= 80 else ("high" if a.severity >= 60 else ("medium" if a.severity >= 30 else "info")) %}
       {% set severity_label = "Kritisch" if a.severity >= 80 else ("Hoch" if a.severity >= 60 else ("Mittel" if a.severity >= 30 else "Info")) %}
       {% set severity_glyph = "▲" if a.severity >= 80 else ("◆" if a.severity >= 60 else ("●" if a.severity >= 30 else "–")) %}
-      <tr class="severity-{{ severity_class }} data-row" data-severity="{{ a.severity }}">
+      <tr class="severity-{{ severity_class }} data-row" data-severity="{{ a.severity }}" data-host="{{ a.host_name or '' }}" data-source-ip="{{ a.source_ip or '' }}">
         <td class="cell-time"><time datetime="{{ a.created_at.isoformat() }}">{{ a.created_at.strftime("%H:%M:%S") }}</time></td>
         <td class="cell-severity"><span aria-hidden="true">{{ severity_glyph }}</span> {{ severity_label }} <small>{{ a.severity }}</small></td>
         <td><strong>{{ a.title }}</strong>{% if a.description %}<span class="cell-sub">{{ a.description }}</span>{% endif %}</td>

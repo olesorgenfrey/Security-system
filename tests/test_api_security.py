@@ -55,7 +55,7 @@ def test_protected_route_challenges_missing_credentials() -> None:
 
 
 @pytest.mark.usefixtures("configured_auth")
-@pytest.mark.parametrize("path", ["/", "/docs", "/openapi.json", "/does-not-exist"])
+@pytest.mark.parametrize("path", ["/", "/alerts", "/docs", "/openapi.json", "/does-not-exist"])
 def test_every_non_health_route_is_protected(path: str) -> None:
     response = client.get(path)
 

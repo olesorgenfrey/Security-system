@@ -30,6 +30,7 @@ test("npm tarball contains the runtime but no caches, tests, or secrets", () => 
     "config/scope.yaml",
     "core/ingestion/consumer.py",
     "dashboard/static/dashboard.js",
+    "dashboard/templates/alerts.html",
     "dashboard/templates/index.html",
     "deploy/docker-compose.yml",
     "package.json",

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>Aegis — Live-Feed</title>
+  <title>Aegis — {{ page_title }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/dashboard.js" defer></script>
@@ -17,11 +17,11 @@
       </div>
 
       <nav class="primary-nav" aria-label="Hauptnavigation">
-        <a class="nav-item active" href="#events-panel" aria-current="page">
+        <a class="nav-item{% if active_view == 'feed' %} active{% endif %}" href="/"{% if active_view == 'feed' %} aria-current="page"{% endif %}>
           <span class="nav-icon" aria-hidden="true">≡</span>
           <span>Live-Feed</span>
         </a>
-        <a class="nav-item" href="#alerts-panel">
+        <a class="nav-item{% if active_view == 'alerts' %} active{% endif %}" href="/alerts"{% if active_view == 'alerts' %} aria-current="page"{% endif %}>
           <span class="nav-icon" aria-hidden="true">▲</span>
           <span>Alerts</span>
           <span class="nav-badge" id="nav-alert-count" {% if not alert_count %}hidden{% endif %}>{{ alert_count }}</span>
@@ -36,9 +36,9 @@
       </nav>
 
       <div class="sidebar-status">
-        <div class="live-state" id="polling-state">
+        <div class="live-state" id="polling-state" data-refresh-seconds="{{ 3 if active_view == 'feed' else 5 }}">
           <span class="status-dot" aria-hidden="true"></span>
-          <span>AUTO-REFRESH · 3 S</span>
+          <span>AUTO-REFRESH · {{ 3 if active_view == "feed" else 5 }} S</span>
         </div>
         <span class="status-note">Geschützter Zugriff</span>
       </div>
@@ -46,10 +46,15 @@
 
     <div class="workspace">
       <header class="topbar">
-        <h1>Live-Feed</h1>
+        <h1>{{ page_title }}</h1>
         <div class="topbar-status" aria-label="Feed-Status">
+          {% if active_view == "feed" %}
           <span><strong id="top-event-count">{{ events | length }}</strong> geladen</span>
+          {% endif %}
           <span><strong id="top-alert-count">{{ alert_count }}</strong> Alerts geladen</span>
+          {% if active_view == "alerts" %}
+          <span><strong id="top-critical-alert-count">{{ critical_alert_count }}</strong> kritisch</span>
+          {% endif %}
           <time id="current-time" aria-label="Aktuelle Uhrzeit">--:--:--</time>
         </div>
       </header>

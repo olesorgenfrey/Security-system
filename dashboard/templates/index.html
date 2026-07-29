@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<a class="alert-banner{% if not alert_count %} clear{% endif %}" id="alert-banner" href="#alerts-panel">
+<a class="alert-banner{% if not alert_count %} clear{% endif %}" id="alert-banner" href="/alerts">
   <span class="alert-banner-icon" id="alert-banner-icon" aria-hidden="true">{{ "▲" if alert_count else "●" }}</span>
   <strong id="alert-banner-title">{% if alert_count %}{{ alert_count }} {{ "offene Alerts" if alert_count != 1 else "offener Alert" }} angezeigt{% else %}Keine offenen Alerts{% endif %}</strong>
   <span id="alert-banner-detail">{% if alert_count %}davon {{ critical_alert_count }} kritisch · sortiert nach Eingangszeit{% else %}Der aktuelle Alert-Feed ist leer.{% endif %}</span>

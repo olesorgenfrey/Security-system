@@ -29,11 +29,13 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, results: list[list[object]]) -> None:
-        self._results = iter(results)
+    def __init__(self, events: list[object], alerts: list[object]) -> None:
+        self._events = events
+        self._alerts = alerts
 
-    def execute(self, _statement: object) -> _FakeResult:
-        return _FakeResult(next(self._results))
+    def execute(self, statement: object) -> _FakeResult:
+        records = self._alerts if "FROM alerts" in str(statement) else self._events
+        return _FakeResult(records)
 
 
 @pytest.fixture
@@ -68,7 +70,7 @@ def dashboard_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     )
 
     def fake_session() -> Iterator[Session]:
-        yield cast(Session, _FakeSession([[event], [alert]]))
+        yield cast(Session, _FakeSession([event], [alert]))
 
     app.dependency_overrides[get_session] = fake_session
     try:
@@ -90,6 +92,21 @@ def test_dashboard_renders_live_data_in_reference_layout(dashboard_client: TestC
     assert 'datetime="2026-07-28T15:56:58+00:00"' in response.text
     assert "htmx" not in response.text.casefold()
     assert "https://" not in response.text
+    assert 'href="/alerts"' in response.text
+
+
+def test_alert_navigation_opens_a_dedicated_active_view(
+    dashboard_client: TestClient,
+) -> None:
+    response = dashboard_client.get("/alerts", auth=_AUTH)
+
+    assert response.status_code == 200
+    assert "<title>Aegis — Alerts</title>" in response.text
+    assert '<a class="nav-item active" href="/alerts" aria-current="page">' in response.text
+    assert "SSH Brute Force" in response.text
+    assert "Betroffene Hosts" in response.text
+    assert "AUTO-REFRESH · 5 S" in response.text
+    assert 'href="/">Zum Live-Feed →</a>' in response.text
 
 
 def test_dashboard_accepts_validated_filters(dashboard_client: TestClient) -> None:

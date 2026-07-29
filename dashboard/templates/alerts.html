@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="kpi-grid" aria-label="Alert-Übersicht">
+  <article class="kpi-card">
+    <span class="kpi-label">Offene Alerts</span>
+    <div><strong id="kpi-alert-count">{{ alert_count }}</strong><span>neueste 20</span></div>
+  </article>
+  <article class="kpi-card{% if critical_alert_count %} critical{% endif %}" id="kpi-critical-card">
+    <span class="kpi-label">Kritisch</span>
+    <div><strong id="kpi-critical-count">{{ critical_alert_count }}</strong><span>Severity ≥ 80</span></div>
+  </article>
+  <article class="kpi-card">
+    <span class="kpi-label">Betroffene Hosts</span>
+    <div><strong id="kpi-alert-host-count">{{ alert_host_count }}</strong><span>im Alert-Feed</span></div>
+  </article>
+  <article class="kpi-card">
+    <span class="kpi-label">Quelladressen</span>
+    <div><strong id="kpi-alert-source-count">{{ alert_source_count }}</strong><span>eindeutig</span></div>
+  </article>
+</section>
+
+<section class="data-panel alerts-panel alerts-page" id="alerts-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Offene Alerts</h2>
+      <span class="panel-meta" id="alerts-panel-count">Neueste {{ alerts | length }} Einträge</span>
+    </div>
+    <a class="panel-link" href="/">Zum Live-Feed →</a>
+  </header>
+  <div id="alerts-table" class="table-region" aria-live="polite">
+    {% include "_alerts_table.html" %}
+  </div>
+</section>
+{% endblock %}

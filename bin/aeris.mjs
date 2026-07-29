@@ -40,7 +40,7 @@ function packageVersion(packageRoot = PACKAGE_ROOT) {
   try {
     return JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")).version;
   } catch {
-    return "0.1.1";
+    return "0.1.2";
   }
 }
 
