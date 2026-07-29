@@ -125,7 +125,7 @@ jobs:
           enable-cache: true
 
       - name: Export requirements
-        run: uv export --no-dev --format requirements-txt > requirements.txt
+        run: uv export --no-dev --no-emit-project --format requirements-txt > requirements.txt
 
       - name: pip-audit
         uses: pypa/gh-action-pip-audit@v1.1.0

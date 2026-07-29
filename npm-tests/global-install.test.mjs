@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -85,10 +86,11 @@ test("packed CLI installs globally and runs outside the checkout without uv", (t
   assert.ok(secrets.every((secret) => !initialized.stdout.includes(secret)));
   if (process.platform !== "win32") assert.equal(statSync(envFile).mode & 0o777, 0o600);
 
-  const installedRoot =
+  const installedRoot = realpathSync(
     process.platform === "win32"
       ? path.join(prefix, "node_modules", "aeris-security-cli")
-      : path.join(prefix, "lib", "node_modules", "aeris-security-cli");
+      : path.join(prefix, "lib", "node_modules", "aeris-security-cli"),
+  );
   assert.ok(existsSync(path.join(installedRoot, "deploy", "docker-compose.yml")));
   assert.ok(existsSync(path.join(installedRoot, "dashboard", "templates", "index.html")));
 

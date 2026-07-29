@@ -24,7 +24,7 @@ test("npm tarball contains the runtime but no caches, tests, or secrets", () => 
     "Dockerfile",
     "README.md",
     "aeris/cli.py",
-    "alembic/versions/0003_reliability_outbox_utc.py",
+    "alembic/versions/0004_align_schema_constraints.py",
     "api/main.py",
     "bin/aeris.mjs",
     "config/scope.yaml",
